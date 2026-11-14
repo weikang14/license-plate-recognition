@@ -9,7 +9,7 @@ from tools.lpr_pipeline import Models, process_video
 
 ROOT = Path(__file__).resolve().parent.parent
 VIDEO = ROOT / "videos" / "testing_video" / "test6.mp4"
-FIELDS = {"id", "video", "frame", "time_s", "plate", "yolo_chars", "n_chars", "score", "match", "crop"}
+FIELDS = {"id", "video", "frame", "time_s", "car_id", "plate", "yolo_chars", "n_chars", "score", "match", "crop"}
 
 pytestmark = [
     pytest.mark.skipif(not Path(os.environ.get("TESSERACT_CMD", "")).is_file(), reason="Tesseract not found: set TESSERACT_CMD"),
@@ -31,11 +31,11 @@ def fast(models, tmp_path_factory):
 
 def test_fast_mode_records(fast):
     records, info, crops = fast
-    assert info["video"] == "test6" and info["frames"] == 700
+    assert info["video"] == "test6" and info["frames"] == 700 and info["vehicles"] >= 1
     assert len(records) >= 1
     for r in records:
         assert set(r) == FIELDS
-        assert r["score"] >= 0.75 and r["frame"] % 7 == 0
+        assert r["score"] >= 0.75 and r["frame"] % 7 == 0 and isinstance(r["car_id"], int)
         assert (crops / r["crop"]).is_file()
     times = [r["time_s"] for r in records]
     assert all(b - a >= 1.5 - 0.01 for a, b in zip(times, times[1:]))

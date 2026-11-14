@@ -3,8 +3,9 @@
 Same models, thresholds and plate processing as the notebook. Changes:
 the 1.5 s capture gap is measured in video time (not wall-clock), mismatched captures
 are recorded too, each record keeps its frame number and time in the video, and plates
-are cropped from the undrawn frame. After the FYP, plates also have to sit on a detected
-car (the original plan; the final notebook ran the plate detector on the whole frame).
+are cropped from the undrawn frame. After the FYP, cars are tracked with ByteTrack and a
+plate only counts when it sits on a tracked car (the original plan, so a plate photo held up
+to the camera is ignored; the final notebook ran the plate detector on the whole frame).
 """
 import math
 import os
@@ -14,6 +15,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pytesseract
+import supervision as sv
 from ultralytics import YOLO
 
 CAPTURE_STRIDE = 7     # notebook: fps = 7 -> try a capture every 7th frame
@@ -35,10 +37,27 @@ def chars_match(ocr_chars: list[str], yolo_chars: list[str]) -> bool:
     return sorted(ocr_chars) == sorted(yolo_chars) and len(yolo_chars) > 0
 
 
-def in_any_car(plate: tuple, cars: list[tuple]) -> bool:
-    """True when the plate box's centre lies inside one of the car boxes (x1, y1, x2, y2)."""
+def car_under(plate: tuple, cars: list[tuple]) -> int | None:
+    """Id of the tracked car (x1, y1, x2, y2, id) whose box holds the plate's centre, else None."""
     cx, cy = (plate[0] + plate[2]) / 2, (plate[1] + plate[3]) / 2
-    return any(x1 <= cx <= x2 and y1 <= cy <= y2 for x1, y1, x2, y2 in cars)
+    return next((car_id for x1, y1, x2, y2, car_id in cars if x1 <= cx <= x2 and y1 <= cy <= y2), None)
+
+
+class CarTracker:
+    """ByteTrack (supervision) over the car detections, so each car keeps one id across frames."""
+
+    def __init__(self, fps: float):
+        self._tracker = sv.ByteTrack(frame_rate=max(1, round(fps)))
+
+    def update(self, boxes: list[tuple]) -> list[tuple]:
+        """boxes: (x1, y1, x2, y2, score) for this frame -> tracked (x1, y1, x2, y2, id)."""
+        if boxes:
+            arr = np.asarray(boxes, dtype=float)
+            dets = sv.Detections(xyxy=arr[:, :4], confidence=arr[:, 4], class_id=np.full(len(arr), 2))
+        else:
+            dets = sv.Detections.empty()  # still advance the tracker so lost cars age out
+        tracked = self._tracker.update_with_detections(dets)
+        return [(*map(float, xyxy), int(tid)) for xyxy, tid in zip(tracked.xyxy, tracked.tracker_id)]
 
 
 def is_capture_frame(frame_no: int, stride: int = CAPTURE_STRIDE) -> bool:
@@ -103,8 +122,9 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
                   annotate_to: Path | None = None, max_frames: int | None = None) -> tuple[list[dict], dict]:
     """Run the pipeline over a video.
 
-    Fast mode (annotate_to=None) only decodes and detects on capture frames; annotate mode
-    detects on every frame and writes the boxed video at the source fps. Both give the same records.
+    Cars are detected and tracked on every frame in both modes. Fast mode (annotate_to=None) runs
+    the plate detector only on capture frames; annotate mode runs it on every frame and writes the
+    boxed video at the source fps. Both give the same records.
     """
     pytesseract.pytesseract.tesseract_cmd = os.environ.get("TESSERACT_CMD", "tesseract")
     video_path = Path(video_path)
@@ -120,32 +140,35 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
     if crops_dir is not None:
         Path(crops_dir).mkdir(parents=True, exist_ok=True)
 
-    gate, records, frames = TimeGate(), [], 0
+    gate, tracker, records, frames = TimeGate(), CarTracker(fps), [], 0
+    car_ids: set[int] = set()
     overlay = {"count": 0, "plate": 0, "letter": None, "chars": 0, "score": 0.0}  # notebook's final_* values
     try:
         while max_frames is None or frames < max_frames:
             frame_no = frames + 1
             capture = is_capture_frame(frame_no)
-            if writer is None and not capture:
-                if not cap.grab():
-                    break
-                frames = frame_no
-                continue
             ok, frame = cap.read()
             if not ok:
                 break
             frames = frame_no
             clean = frame.copy() if writer is not None else frame  # crops come from the undrawn frame
-            cars = [(x1, y1, x2, y2) for x1, y1, x2, y2, _, cls in _boxes(models.car, clean) if int(cls) == 2]
+            cars = tracker.update([(x1, y1, x2, y2, s) for x1, y1, x2, y2, s, cls in _boxes(models.car, clean)
+                                   if int(cls) == 2])
+            car_ids.update(c[4] for c in cars)
             if writer is not None:
-                for x1, y1, x2, y2 in cars:
+                for x1, y1, x2, y2, car_id in cars:
                     cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                    cv2.putText(frame, f"#{car_id}", (int(x1), max(int(y1) - 8, 20)), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.9, (0, 255, 0), 2, cv2.LINE_AA)
+            if writer is None and not capture:
+                continue  # fast mode: plates are only read on capture frames
 
             plate_box = 0
             t_s = (frame_no - 1) / fps
             for x1, y1, x2, y2, score, _ in _boxes(models.plate, clean):
-                if not in_any_car((x1, y1, x2, y2), cars):
-                    continue  # the plan: a plate only counts when it sits on a detected car
+                car_id = car_under((x1, y1, x2, y2), cars)
+                if car_id is None:
+                    continue  # the plan: a plate only counts when it sits on a tracked car
                 if writer is not None:
                     cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
                 if not capture or not gate.allow(t_s) or score < 0.75:
@@ -157,7 +180,7 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
                 match = chars_match(list(text), chars)
                 rid = f"{stem}-{frame_no:06d}"
                 records.append({"id": rid, "video": stem, "frame": frame_no, "time_s": round(t_s, 2),
-                                "plate": text, "yolo_chars": chars, "n_chars": len(chars),
+                                "car_id": car_id, "plate": text, "yolo_chars": chars, "n_chars": len(chars),
                                 "score": round(score, 3), "match": match, "crop": f"{rid}.jpg"})
                 if crops_dir is not None:
                     cv2.imwrite(str(Path(crops_dir) / f"{rid}.jpg"), region, [cv2.IMWRITE_JPEG_QUALITY, 100])
@@ -173,4 +196,5 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
         cap.release()
         if writer is not None:
             writer.release()
-    return records, {"video": stem, "fps": fps, "frames": frames, "duration_s": round(frames / fps, 2)}
+    return records, {"video": stem, "fps": fps, "frames": frames, "duration_s": round(frames / fps, 2),
+                     "vehicles": len(car_ids)}

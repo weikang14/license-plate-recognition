@@ -1,15 +1,34 @@
 import numpy as np
 
-from tools.lpr_pipeline import TimeGate, chars_match, clean_ocr_text, in_any_car, is_capture_frame, warp_plate
+from tools.lpr_pipeline import (CarTracker, TimeGate, car_under, chars_match, clean_ocr_text, is_capture_frame,
+                                warp_plate)
 
 
-def test_in_any_car_uses_the_plate_centre():
-    cars = [(100, 100, 400, 300), (500, 100, 800, 300)]
-    assert in_any_car((350, 250, 450, 280), cars)        # centre (400, 265) on the first car's edge
-    assert in_any_car((600, 270, 700, 320), cars)        # pokes out below, centre (650, 295) still inside
-    assert not in_any_car((600, 280, 700, 330), cars)    # centre (650, 305) is below the car
-    assert not in_any_car((420, 200, 480, 230), cars)    # between the two cars
-    assert not in_any_car((150, 150, 250, 200), [])      # no car detected
+def test_car_under_uses_the_plate_centre():
+    cars = [(100, 100, 400, 300, 7), (500, 100, 800, 300, 9)]
+    assert car_under((350, 250, 450, 280), cars) == 7    # centre (400, 265) on the first car's edge
+    assert car_under((600, 270, 700, 320), cars) == 9    # pokes out below, centre (650, 295) still inside
+    assert car_under((600, 280, 700, 330), cars) is None  # centre (650, 305) is below the car
+    assert car_under((420, 200, 480, 230), cars) is None  # between the two cars
+    assert car_under((150, 150, 250, 200), []) is None    # no car tracked
+
+
+def test_car_tracker_keeps_ids_across_frames():
+    tracker = CarTracker(fps=30)
+    first = tracker.update([(100, 100, 300, 250, 0.9), (600, 100, 800, 260, 0.8)])
+    ids = sorted(t[4] for t in first)
+    for k in range(1, 6):  # both cars drift a little each frame
+        moved = tracker.update([(100 + 4 * k, 100, 300 + 4 * k, 250, 0.9), (600, 100 + 2 * k, 800, 260 + 2 * k, 0.8)])
+        assert sorted(t[4] for t in moved) == ids
+    # A car that appears mid-stream is confirmed on its second frame (ByteTrack's activation), then gets a fresh id.
+    three = [(124, 100, 324, 250, 0.9), (600, 112, 800, 272, 0.8), (1200, 400, 1500, 600, 0.9)]
+    tracker.update(three)
+    new = tracker.update([(128, 100, 328, 250, 0.9), (600, 114, 800, 274, 0.8), (1202, 400, 1502, 600, 0.9)])
+    assert len({t[4] for t in new}) == 3 and set(ids) < {t[4] for t in new}
+
+
+def test_car_tracker_handles_frames_without_cars():
+    assert CarTracker(fps=25).update([]) == []
 
 
 def test_clean_ocr_text():

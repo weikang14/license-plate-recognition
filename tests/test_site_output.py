@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
 DATA = WEB / "data"
 SOURCE_VIDEOS = ROOT / "videos" / "testing_video"
-FIELDS = {"id", "video", "frame", "time_s", "plate", "yolo_chars", "n_chars", "score", "match", "crop"}
+FIELDS = {"id", "video", "frame", "time_s", "car_id", "plate", "yolo_chars", "n_chars", "score", "match", "crop"}
 MB = 1024 * 1024
 
 pytestmark = pytest.mark.skipif(not (DATA / "summary.json").is_file(), reason="run tools/build_site_data.py first")
@@ -45,6 +45,8 @@ def test_summary_consistent():
     assert s["captures"] == len(records)
     assert s["matched"] == sum(r["match"] for r in records)
     assert len(s["per_video"]) == 15
+    assert s["vehicles"] == sum(p["vehicles"] for p in s["per_video"])
+    assert all(isinstance(r["car_id"], int) for r in records)
     for p in s["per_video"]:
         if p["playback"]:
             assert (WEB / p["playback"]).is_file()

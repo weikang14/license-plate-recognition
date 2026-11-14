@@ -66,6 +66,7 @@ def summarize(records: list[dict], infos: list[dict], map50: float, playback: se
         mine = [r for r in records if r["video"] == v]
         per_video.append({
             "video": v,
+            "vehicles": info.get("vehicles", 0),
             "captures": len(mine),
             "matched": sum(r["match"] for r in mine),
             "duration_s": info["duration_s"],
@@ -73,6 +74,7 @@ def summarize(records: list[dict], infos: list[dict], map50: float, playback: se
         })
     return {
         "videos": len(infos),
+        "vehicles": sum(p["vehicles"] for p in per_video),  # cars tracked, counted per video
         "captures": n,
         "matched": matched,
         "match_rate": round(matched / n, 3) if n else 0,

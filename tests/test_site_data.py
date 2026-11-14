@@ -46,21 +46,22 @@ def test_build_metrics_copies_plots(tmp_path):
 
 def test_summarize_counts():
     records = [rec("a", 0.80, False), rec("a", 1.00, True), rec("b", 0.90, True)]
-    infos = [{"video": "a", "duration_s": 10.0}, {"video": "b", "duration_s": 20.0}]
+    infos = [{"video": "a", "duration_s": 10.0, "vehicles": 3}, {"video": "b", "duration_s": 20.0, "vehicles": 1}]
     s = summarize(records, infos, 0.974, {"a"})
-    assert (s["videos"], s["captures"], s["matched"]) == (2, 3, 2)
+    assert (s["videos"], s["vehicles"], s["captures"], s["matched"]) == (2, 4, 3, 2)
     assert s["match_rate"] == 0.667
     assert s["avg_score"] == 0.9
     assert s["map50"] == 0.974
     assert s["score_hist"]["edges"] == [0.75, 0.80, 0.85, 0.90, 0.95, 1.00]
     assert s["score_hist"]["counts"] == [0, 1, 0, 1, 1]
     a, b = s["per_video"]
-    assert a == {"video": "a", "captures": 2, "matched": 1, "duration_s": 10.0, "playback": "data/videos/a.mp4"}
+    assert a == {"video": "a", "vehicles": 3, "captures": 2, "matched": 1, "duration_s": 10.0,
+                 "playback": "data/videos/a.mp4"}
     assert b["playback"] is None
 
 
 def test_summarize_zero_capture_video():
-    infos = [{"video": "a", "duration_s": 5.0}, {"video": "c", "duration_s": 7.0}]
+    infos = [{"video": "a", "duration_s": 5.0, "vehicles": 1}, {"video": "c", "duration_s": 7.0, "vehicles": 0}]
     s = summarize([rec("a", 0.8, True)], infos, 0.974, set())
     c = s["per_video"][1]
     assert (c["video"], c["captures"], c["matched"]) == ("c", 0, 0)
