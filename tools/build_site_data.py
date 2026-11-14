@@ -2,7 +2,8 @@
 
     python tools/build_site_data.py --videos videos/testing_video --out web/data --playback 4 [--only test6 ...]
 
-Env: TESSERACT_CMD, FFMPEG (default: found on PATH). --out is wiped first: it only holds generated files.
+Env: TESSERACT_CMD, FFMPEG (default: found on PATH). Inputs are checked first; the build goes to <out>.new
+and replaces <out> only when finished. An existing <out> is replaced only if an earlier run made it.
 """
 import argparse
 import json
@@ -43,6 +44,27 @@ def transcode_h264(src: Path, dst: Path, max_mb: float = 25) -> None:
     raise RuntimeError(f"{dst.name} is still over {max_mb} MB at 540p crf 36")
 
 
+def preflight(out: Path, ffmpeg: str, runs=RUNS) -> None:
+    """Fail in seconds, not hours: check inputs and refuse to replace a folder this script didn't make."""
+    if shutil.which(ffmpeg) is None:
+        sys.exit(f"ffmpeg not found: {ffmpeg} (set FFMPEG or add it to PATH)")
+    missing = [str(d) for _, _, d in runs if not (Path(d) / "results.csv").is_file()]
+    if missing:
+        sys.exit("training runs not found (training_results/ is local-only):\n  " + "\n  ".join(missing))
+    if out.exists() and any(out.iterdir()) and not (out / "summary.json").is_file():
+        sys.exit(f"refusing to replace {out}: it is not empty and was not made by this script")
+    staging = out.with_name(out.name + ".new")
+    if staging.exists():
+        sys.exit(f"leftover {staging} from an interrupted run; delete it and retry")
+
+
+def publish(staging: Path, out: Path) -> None:
+    """Swap the finished build into place, so a failed run never leaves the site half-written."""
+    if out.exists():
+        shutil.rmtree(out)
+    staging.rename(out)
+
+
 def _write_json(path: Path, obj) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
@@ -58,9 +80,9 @@ def main(argv: list[str] | None = None) -> None:
     videos = sorted(p for p in args.videos.glob("*.mp4") if not args.only or p.stem in args.only)
     if not videos:
         sys.exit(f"no .mp4 videos found in {args.videos}")
-    out = args.out
-    if out.exists():
-        shutil.rmtree(out)
+    final_out = args.out.resolve()
+    preflight(final_out, os.environ.get("FFMPEG", "ffmpeg"))
+    out = final_out.with_name(final_out.name + ".new")  # build here, publish() at the end
     (out / "videos").mkdir(parents=True)
     models = Models.load(ROOT / "models")
 
@@ -99,6 +121,7 @@ def main(argv: list[str] | None = None) -> None:
     _write_json(out / "summary.json", {"generated": date.today().isoformat(),
                                        **summarize(records, infos, map50, set(chosen))})
     _write_json(out / "metrics.json", metrics)
+    publish(out, final_out)
     print(f"done: {len(records)} captures, {sum(r['match'] for r in records)} matched, playback: {chosen}")
 
 

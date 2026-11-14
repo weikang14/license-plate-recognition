@@ -1,16 +1,21 @@
 from pathlib import Path
 
+import pytest
+
 from tools.site_data import build_metrics, load_run, select_playback, summarize
 
 ROOT = Path(__file__).resolve().parent.parent
 FINAL = ROOT / "training_results" / "Results_yolov8s" / "yolov8s_yaml(3)"
 NANO = ROOT / "training_results" / "Results_yolov8n" / "yolov8n_yaml"
+needs_runs = pytest.mark.skipif(not (FINAL.is_dir() and NANO.is_dir()),
+                                reason="training_results/ is local-only (not in the repository)")
 
 
 def rec(video, score, match):
     return {"video": video, "score": score, "match": match}
 
 
+@needs_runs
 def test_load_run_final_metrics():
     run = load_run(FINAL)
     assert run["epochs_trained"] == 375
@@ -18,6 +23,7 @@ def test_load_run_final_metrics():
     assert len(run["curves"]["epoch"]) == 375
 
 
+@needs_runs
 def test_load_run_yolov8n():
     run = load_run(NANO)
     assert run["epochs_trained"] == 198
@@ -26,6 +32,7 @@ def test_load_run_yolov8n():
     assert run["best"]["map50_95"] == 0.637
 
 
+@needs_runs
 def test_build_metrics_copies_plots(tmp_path):
     m = build_metrics([("final", "YOLOv8s (final)", FINAL), ("nano", "YOLOv8n", NANO)], "final", tmp_path)
     names = {"confusion_matrix.png", "PR_curve.png", "F1_curve.png",

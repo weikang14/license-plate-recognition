@@ -11,8 +11,10 @@ ROOT = Path(__file__).resolve().parent.parent
 VIDEO = ROOT / "videos" / "testing_video" / "test6.mp4"
 FIELDS = {"id", "video", "frame", "time_s", "plate", "yolo_chars", "n_chars", "score", "match", "crop"}
 
-pytestmark = pytest.mark.skipif(
-    not Path(os.environ.get("TESSERACT_CMD", "")).is_file(), reason="Tesseract not found: set TESSERACT_CMD")
+pytestmark = [
+    pytest.mark.skipif(not Path(os.environ.get("TESSERACT_CMD", "")).is_file(), reason="Tesseract not found: set TESSERACT_CMD"),
+    pytest.mark.skipif(not VIDEO.is_file(), reason="test videos are local-only (not in the repository)"),
+]
 
 
 @pytest.fixture(scope="module")

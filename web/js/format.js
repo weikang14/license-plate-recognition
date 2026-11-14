@@ -5,7 +5,7 @@ export const DASH = "—";
 /** "VW2468" -> "VW 2468"; empty -> "—". */
 export function formatPlate(s) {
   if (!s) return DASH;
-  return s.replace(/(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])/g, " ");
+  return s.replace(/([A-Za-z])(?=\d)|(\d)(?=[A-Za-z])/g, "$1$2 ");
 }
 
 /** Seconds -> "m:ss". */

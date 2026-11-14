@@ -1,5 +1,5 @@
 // About: the project in plain words (from the FYP report), the pipeline, the stack and the models.
-import { formatPct } from "../format.js";
+import { formatPct, formatPlate } from "../format.js";
 
 const REPO = "https://github.com/weikang14/license-plate-recognition";
 
@@ -11,8 +11,13 @@ const STEPS = [
   ["Cross-check", "The plate is verified only when both readers find the same characters. The OCR text is kept because it preserves character order."],
 ];
 
-export function render(root, { summary, metrics }) {
+export function render(root, { records, summary, metrics }) {
   const final = metrics.runs.find((r) => r.key === metrics.final);
+  const noText = records.filter((r) => !r.plate).length;
+  const verified = [...new Set(records.filter((r) => r.match).map((r) => r.plate))];
+  const verifiedLine = verified.length === 1
+    ? `All ${summary.matched} verified captures are the same plate, ${formatPlate(verified[0])}.`
+    : `The ${summary.matched} verified captures cover ${verified.length} different plates.`;
 
   root.innerHTML = `
     <div class="about">
@@ -33,7 +38,7 @@ export function render(root, { summary, metrics }) {
         <p>Fine-tuning YOLOv8s and YOLOv8m from pre-trained weights on more than 13,000 images gave excellent training scores but poor detection on real footage. Training from scratch from the model definition (.yaml) worked as expected, so all final plate models were trained that way.</p>
 
         <h3>Limitations and next steps</h3>
-        <p>Detection confidence drops when the camera is not level with the plate. The perspective correction uses fixed points, so plates filmed at close range leave too little margin after correction, and OCR misreads them. This is the main reason many captures end as a mismatch. The camera also has no zoom. Next steps are a camera with zoom, testing newer YOLO versions, better handling of lighting and occlusion, and connecting a live camera feed.</p>
+        <p>On these test videos both readers fail often: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so most captures end as a mismatch. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the plate, and that the fixed perspective correction leaves too little margin around plates filmed at close range. The camera also has no zoom. Next steps are a camera with zoom, a perspective correction fitted to each plate, testing newer YOLO versions, better handling of lighting and occlusion, and connecting a live camera feed.</p>
       </section>
 
       <section class="panel">

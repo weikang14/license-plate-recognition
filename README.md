@@ -30,7 +30,7 @@ A final year project that reads Malaysian license plates from video, plus a dash
 | Verified by the OCR + YOLO cross-check | 11 (6.1%) |
 | Average detection confidence | 0.82 |
 
-The plate detector is reliable; the cross-check is strict. Most mismatches come from the reading step: the perspective correction uses fixed points, so plates filmed at close range leave too little margin and Tesseract misreads them, while the character model often reads the same plate correctly. Each mismatch is listed on the site with both readings side by side.
+The plate detector is reliable; reading the plate is the weak step. Tesseract returned no text on 67 of 181 captures, and the character model frequently misses a character, so the strict cross-check rejects most captures. All 11 verified captures are the same plate, JHB 2149, seen in four videos. The project report notes that the fixed perspective correction leaves too little margin around plates filmed at close range, which hurts OCR. Every mismatch is listed on the site with both readings side by side.
 
 ## Repository layout
 
@@ -55,7 +55,7 @@ Then open http://127.0.0.1:8765. (`python -m http.server` also works, but it can
 
 ## Regenerate the site data
 
-Needs Python with `ultralytics`, `opencv-python` and `pytesseract`, plus [Tesseract OCR](https://github.com/UB-Mannheim/tesseract) and [ffmpeg](https://ffmpeg.org/). Point `TESSERACT_CMD` and `FFMPEG` at them if they are not on `PATH`. The test videos are not in this repository.
+Needs Python with `ultralytics`, `opencv-python` and `pytesseract`, plus [Tesseract OCR](https://github.com/UB-Mannheim/tesseract) and [ffmpeg](https://ffmpeg.org/). Point `TESSERACT_CMD` and `FFMPEG` at them if they are not on `PATH`. The raw test videos (`videos/`) and the training runs (`training_results/`) are kept locally and are not in this repository; tests that need them are skipped when they are missing.
 
 ```
 python tools/build_site_data.py --videos path/to/test/videos --out web/data --playback 4

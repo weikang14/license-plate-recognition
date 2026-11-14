@@ -56,12 +56,15 @@ def test_videos_are_browser_playable():
     for v in videos:
         info = probe(v)
         assert (info["codec_name"], info["pix_fmt"]) == ("h264", "yuv420p"), v.name
+        assert v.stat().st_size <= 25 * MB, v.name
         # Some sources are variable frame rate (nominal 25/1, real ~24.5); records use the real average,
         # so the web video must keep the source's average rate and duration for seeking to line up.
+        # The source videos are local-only, so this part only runs where they exist.
+        if not (SOURCE_VIDEOS / v.name).is_file():
+            continue
         src = probe(SOURCE_VIDEOS / v.name)
         assert rate(info["avg_frame_rate"]) == pytest.approx(rate(src["avg_frame_rate"]), abs=0.01), v.name
         assert float(info["duration"]) == pytest.approx(float(src["duration"]), abs=0.05), v.name
-        assert v.stat().st_size <= 25 * MB, v.name
 
 
 def test_site_budget():
