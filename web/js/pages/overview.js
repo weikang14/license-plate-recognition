@@ -6,10 +6,10 @@ export function render(root, { records, summary }) {
   const s = summary;
   const kpis = [
     ["Videos processed", s.videos],
+    ["Vehicles tracked", s.vehicles],
     ["Plate captures", s.captures],
     ["Verified plates", s.matched, "ok"],
     ["Verification rate", formatPct(s.match_rate)],
-    ["Avg. confidence", s.avg_score.toFixed(2)],
     ["Final model mAP50", s.map50.toFixed(3)],
   ];
   const recent = records.filter((r) => r.match).slice(-8).reverse();
@@ -36,7 +36,7 @@ export function render(root, { records, summary }) {
           <li><a href="#/records?id=${encodeURIComponent(r.id)}">
             <img src="${esc(r.crop)}" alt="Plate ${esc(r.plate)}" loading="lazy">
             ${plateChip(r.plate)}
-            <span class="muted">${esc(r.video)} at ${formatTime(r.time_s)}</span>
+            <span class="muted">Vehicle #${r.car_id} in ${esc(r.video)} at ${formatTime(r.time_s)}</span>
             <span class="muted">${r.score.toFixed(2)}</span>
           </a></li>`).join("")}</ul>`
         : `<p class="state">No plate passed the OCR + YOLO cross-check yet. See <a href="#/records">all captures</a>.</p>`}

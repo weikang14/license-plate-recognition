@@ -4,8 +4,8 @@ import { formatPct, formatPlate } from "../format.js";
 const REPO = "https://github.com/weikang14/license-plate-recognition";
 
 const STEPS = [
-  ["Find vehicles", "YOLOv8n (COCO) marks cars in every frame."],
-  ["Find the plate", "A YOLOv8s plate detector trained for this project. Plates at 0.75 confidence or higher are captured, at most once every 1.5 seconds."],
+  ["Find and track vehicles", "YOLOv8n (COCO) finds cars in every frame, and ByteTrack (supervision) gives each car an id that follows it from frame to frame."],
+  ["Find the plate", "A YOLOv8s plate detector trained for this project. A plate only counts when it sits on a tracked car, so a photo of a plate held up to the camera is ignored. Plates at 0.75 confidence or higher are captured, at most once every 1.5 seconds."],
   ["Straighten it", "The crop is converted to grayscale, resized and perspective-corrected so the characters sit level."],
   ["Read it twice", "Tesseract OCR reads the text, and a second YOLOv8 model detects each character on its own."],
   ["Cross-check", "The plate is verified only when both readers find the same characters, compared without order. The OCR text is kept as the result."],
@@ -23,7 +23,7 @@ export function render(root, { records, summary, metrics }) {
     <div class="about">
       <section class="panel prose">
         <h2>What this project does</h2>
-        <p>This system reads Malaysian license plates from video. It finds a vehicle, finds its plate, and reads the plate with two independent methods. A plate is only recorded as verified when both methods agree, and the results are saved to a CSV file. It was built as a final year project to automate the plate logging that security staff still do by hand at the entrances of housing areas, malls and office buildings.</p>
+        <p>This system reads Malaysian license plates from video. It finds a vehicle, keeps tracking it, finds the plate on it, and reads the plate with two independent methods. A plate is only recorded as verified when both methods agree, and the results are saved to a CSV file. It was built as a final year project to automate the plate logging that security staff still do by hand at the entrances of housing areas, malls and office buildings.</p>
 
         <h3>Background</h3>
         <p>Malaysia has about 22 million registered vehicles for about 34 million people, roughly 66 vehicles for every 100 residents and the second-highest rate in Southeast Asia after Brunei. Recording every entry and exit by hand is slow and inefficient, and plates are easier to identify a vehicle by than its make, model or colour. With an ageing population and younger workers less willing to take repetitive jobs, automating this work matters more.</p>
@@ -32,7 +32,7 @@ export function render(root, { records, summary, metrics }) {
         <p>Examine how license plate detection, built on computer vision and artificial intelligence, can automate the recording of vehicles entering and leaving, and look at the trends and prospects of the technology.</p>
 
         <h3>Results</h3>
-        <p>The plate detector used by the pipeline, a YOLOv8s trained from scratch, reached a validation mAP50 of ${final.best.map50.toFixed(3)}, with precision ${final.best.precision.toFixed(3)} and recall ${final.best.recall.toFixed(3)}. Across ${summary.videos} recorded test videos, the pipeline made ${summary.captures} plate captures, and ${summary.matched} of them (${formatPct(summary.match_rate)}) passed the OCR and YOLO cross-check. Every number on this site comes from that run.</p>
+        <p>The plate detector used by the pipeline, a YOLOv8s trained from scratch, reached a validation mAP50 of ${final.best.map50.toFixed(3)}, with precision ${final.best.precision.toFixed(3)} and recall ${final.best.recall.toFixed(3)}. Across ${summary.videos} recorded test videos, the pipeline tracked ${summary.vehicles} vehicles and made ${summary.captures} plate captures, and ${summary.matched} of them (${formatPct(summary.match_rate)}) passed the OCR and YOLO cross-check. Every number on this site comes from that run.</p>
 
         <h3>What the experiments taught</h3>
         <p>Training started from pre-trained YOLOv8n weights, which gave stable results. Fine-tuning YOLOv8s and YOLOv8m from pre-trained weights on more than 13,000 images then gave excellent training scores but poor detection on real footage. Training from scratch from the model definition (.yaml) worked as expected, so the final plate detectors were trained that way. For data that differs a lot from what the pre-trained weights saw, training from scratch is often the better choice.</p>
@@ -68,6 +68,7 @@ export function render(root, { records, summary, metrics }) {
           <ul class="stack-list">
             <li>Python in an Anaconda environment</li>
             <li>Ultralytics YOLOv8 on PyTorch, trained with CUDA on a GPU (models trained with Ultralytics 8.1 and 8.2)</li>
+            <li>supervision (ByteTrack) for vehicle tracking</li>
             <li>OpenCV for video and image processing</li>
             <li>Tesseract OCR 5 through pytesseract</li>
             <li>This dashboard: HTML, CSS, JavaScript and Chart.js 4.4.1, published with GitHub Pages</li>

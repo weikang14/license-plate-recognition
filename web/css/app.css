@@ -300,3 +300,4 @@ figcaption { margin-top: 6px; color: var(--ink-2); font-size: 14px; }
   background: #FBF6EE;
   border-radius: 0 6px 6px 0;
 }
+.timeline .car { width: 2.6em; color: var(--sign-2); font-weight: 600; }

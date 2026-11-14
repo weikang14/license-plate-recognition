@@ -16,7 +16,7 @@ export function render(root, { records, summary }, params) {
           ${list.map((p) => `<button type="button" role="tab" data-video="${esc(p.video)}">${esc(p.video)}</button>`).join("")}
         </div>
         <video controls preload="metadata" playsinline></video>
-        <p class="muted">Green boxes are cars, red boxes are plates. The counters in the corner are drawn by the pipeline itself.</p>
+        <p class="muted">Green boxes are tracked cars with their ids, red boxes are plates on those cars. The counters in the corner are drawn by the pipeline itself.</p>
       </section>
       <section class="panel">
         <h2>Captures in this video <small></small></h2>
@@ -33,11 +33,12 @@ export function render(root, { records, summary }, params) {
       b.setAttribute("aria-selected", String(b.dataset.video === p.video));
     }
     mine = records.filter((r) => r.video === p.video);
-    root.querySelector("h2 small").textContent = `${mine.length} captures, ${mine.filter((r) => r.match).length} verified`;
+    root.querySelector("h2 small").textContent =
+      `${p.vehicles} vehicles tracked, ${mine.length} captures, ${mine.filter((r) => r.match).length} verified`;
     timeline.innerHTML = mine.length
       ? mine.map((r, i) => `
         <li><button type="button" data-i="${i}">
-          <span class="t">${formatTime(r.time_s)}</span>${plateChip(r.plate)}
+          <span class="t">${formatTime(r.time_s)}</span><span class="car">#${r.car_id}</span>${plateChip(r.plate)}
           ${r.match ? '<span class="tag tag-ok">Verified</span>' : '<span class="tag tag-warn">Mismatch</span>'}
         </button></li>`).join("")
       : '<li class="muted">No captures in this video.</li>';
