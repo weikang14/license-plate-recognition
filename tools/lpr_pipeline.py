@@ -1,8 +1,10 @@
 """Recognition pipeline, ported from code/Final_License_Plate_Detection.ipynb.
 
-Same models, thresholds and plate processing as the notebook. Only three changes:
+Same models, thresholds and plate processing as the notebook. Changes:
 the 1.5 s capture gap is measured in video time (not wall-clock), mismatched captures
-are recorded too, and each record keeps its frame number and time in the video.
+are recorded too, each record keeps its frame number and time in the video, and plates
+are cropped from the undrawn frame. After the FYP, plates also have to sit on a detected
+car (the original plan; the final notebook ran the plate detector on the whole frame).
 """
 import math
 import os
@@ -31,6 +33,12 @@ def clean_ocr_text(text: str) -> str:
 def chars_match(ocr_chars: list[str], yolo_chars: list[str]) -> bool:
     """A plate counts only when OCR and YOLO saw the same characters."""
     return sorted(ocr_chars) == sorted(yolo_chars) and len(yolo_chars) > 0
+
+
+def in_any_car(plate: tuple, cars: list[tuple]) -> bool:
+    """True when the plate box's centre lies inside one of the car boxes (x1, y1, x2, y2)."""
+    cx, cy = (plate[0] + plate[2]) / 2, (plate[1] + plate[3]) / 2
+    return any(x1 <= cx <= x2 and y1 <= cy <= y2 for x1, y1, x2, y2 in cars)
 
 
 def is_capture_frame(frame_no: int, stride: int = CAPTURE_STRIDE) -> bool:
@@ -128,14 +136,16 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
                 break
             frames = frame_no
             clean = frame.copy() if writer is not None else frame  # crops come from the undrawn frame
+            cars = [(x1, y1, x2, y2) for x1, y1, x2, y2, _, cls in _boxes(models.car, clean) if int(cls) == 2]
             if writer is not None:
-                for x1, y1, x2, y2, _, cls in _boxes(models.car, clean):
-                    if int(cls) == 2:
-                        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                for x1, y1, x2, y2 in cars:
+                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
 
             plate_box = 0
             t_s = (frame_no - 1) / fps
             for x1, y1, x2, y2, score, _ in _boxes(models.plate, clean):
+                if not in_any_car((x1, y1, x2, y2), cars):
+                    continue  # the plan: a plate only counts when it sits on a detected car
                 if writer is not None:
                     cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
                 if not capture or not gate.allow(t_s) or score < 0.75:

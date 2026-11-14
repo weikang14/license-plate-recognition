@@ -1,6 +1,15 @@
 import numpy as np
 
-from tools.lpr_pipeline import TimeGate, chars_match, clean_ocr_text, is_capture_frame, warp_plate
+from tools.lpr_pipeline import TimeGate, chars_match, clean_ocr_text, in_any_car, is_capture_frame, warp_plate
+
+
+def test_in_any_car_uses_the_plate_centre():
+    cars = [(100, 100, 400, 300), (500, 100, 800, 300)]
+    assert in_any_car((350, 250, 450, 280), cars)        # centre (400, 265) on the first car's edge
+    assert in_any_car((600, 270, 700, 320), cars)        # pokes out below, centre (650, 295) still inside
+    assert not in_any_car((600, 280, 700, 330), cars)    # centre (650, 305) is below the car
+    assert not in_any_car((420, 200, 480, 230), cars)    # between the two cars
+    assert not in_any_car((150, 150, 250, 200), [])      # no car detected
 
 
 def test_clean_ocr_text():
