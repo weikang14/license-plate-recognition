@@ -46,7 +46,7 @@ export function render(root, { records, summary, metrics }) {
         <ol class="pipeline">
           ${STEPS.map(([t, d]) => `<li><strong>${t}</strong><span>${d}</span></li>`).join("")}
         </ol>
-        <p class="pipeline-note"><strong>Known shortcut in step 5.</strong> The character model already finds every character with its position, so sorting its boxes left to right could read the plate on its own. There was no time to build that during the project, so Tesseract supplies the character order and the cross-check only compares which characters were found, not their order.</p>
+        <p class="pipeline-note"><strong>Known shortcut in step 5.</strong> The character model returns the characters it finds in a scrambled order, because YOLO lists detections by confidence rather than by position. During the project no way was found to put them back in reading order, so Tesseract supplies the order and the cross-check only compares which characters were found, not their order. Sorting the character boxes by their horizontal position would fix this, and is listed under next steps.</p>
       </section>
 
       <div class="grid-2">

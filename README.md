@@ -18,7 +18,7 @@ A final year project that reads Malaysian license plates from video, plus a dash
 2. **Find the plate**: a YOLOv8s plate detector trained for this project. Plates detected with confidence 0.75 or higher are captured, at most once every 1.5 seconds.
 3. **Straighten it**: the crop is converted to grayscale, resized and perspective-corrected.
 4. **Read it twice**: Tesseract OCR reads the text, and a second YOLOv8 model detects each character.
-5. **Cross-check**: a plate is verified only when both readers find the same characters, compared without order, and the OCR text is kept as the result. Known shortcut: the character model already finds every character with its position, so sorting its boxes left to right could read the plate on its own; there was no time to build that during the project, so Tesseract supplies the order.
+5. **Cross-check**: a plate is verified only when both readers find the same characters, compared without order, and the OCR text is kept as the result. Known shortcut: the character model returns its characters in a scrambled order (YOLO lists detections by confidence, not position), and during the project no way was found to put them back in reading order, so Tesseract supplies the order. Sorting the character boxes by horizontal position would fix this.
 
 ## Results
 
