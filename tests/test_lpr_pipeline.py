@@ -1,7 +1,7 @@
 import numpy as np
 
 from tools.lpr_pipeline import (CarTracker, TimeGate, car_under, chars_match, clean_ocr_text, is_capture_frame,
-                                warp_plate)
+                                prepare_plate)
 
 
 def test_car_under_uses_the_plate_centre():
@@ -52,6 +52,6 @@ def test_time_gate():
     assert [gate.allow(t) for t in (0.0, 1.0, 1.49, 1.5, 2.0)] == [True, False, False, True, False]
 
 
-def test_warp_plate_shape():
-    out = warp_plate(np.random.randint(0, 256, (60, 200, 3), dtype=np.uint8))
-    assert out.shape == (310, 630) and out.dtype == np.uint8
+def test_prepare_plate_is_gray_800_wide_and_keeps_aspect():
+    out = prepare_plate(np.random.randint(0, 256, (60, 200, 3), dtype=np.uint8))
+    assert out.shape == (240, 800) and out.dtype == np.uint8

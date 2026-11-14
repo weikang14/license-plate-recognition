@@ -6,6 +6,7 @@ are recorded too, each record keeps its frame number and time in the video, and 
 are cropped from the undrawn frame. After the FYP, cars are tracked with ByteTrack and a
 plate only counts when it sits on a tracked car (the original plan, so a plate photo held up
 to the camera is ignored; the final notebook ran the plate detector on the whole frame).
+The notebook's fixed-point perspective correction was also dropped after testing (see prepare_plate).
 """
 import math
 import os
@@ -20,11 +21,6 @@ from ultralytics import YOLO
 
 CAPTURE_STRIDE = 7     # notebook: fps = 7 -> try a capture every 7th frame
 CAPTURE_GAP_S = 1.5    # notebook: timedelta(seconds=1.5)
-
-# Notebook's fixed perspective correction for the resized plate.
-_PTS_SRC = np.float32([[141, 131], [480, 159], [493, 630], [64, 601]])
-_PTS_DST = np.float32([[70, 40], [340, 120], [320, 400], [20, 235]])
-_WARP = cv2.getPerspectiveTransform(_PTS_SRC, _PTS_DST)
 
 
 def clean_ocr_text(text: str) -> str:
@@ -79,11 +75,14 @@ class TimeGate:
         return True
 
 
-def warp_plate(plate_bgr: np.ndarray) -> np.ndarray:
-    """Gray, resize to width 800, then the notebook's perspective warp to 630x310."""
+def prepare_plate(plate_bgr: np.ndarray) -> np.ndarray:
+    """Gray and resized to width 800, as in the notebook, without its fixed perspective warp.
+
+    The notebook's warp used four fixed points tuned to one plate; on the test captures it cut
+    verified plates from 46 to 9, because it crops or skews characters for both readers.
+    """
     gray = cv2.cvtColor(plate_bgr, cv2.COLOR_BGR2GRAY)
-    resized = cv2.resize(gray, (800, int(gray.shape[0] * (800 / gray.shape[1]))), interpolation=cv2.INTER_CUBIC)
-    return cv2.warpPerspective(resized, _WARP, (630, 310))
+    return cv2.resize(gray, (800, int(gray.shape[0] * (800 / gray.shape[1]))), interpolation=cv2.INTER_CUBIC)
 
 
 @dataclass
@@ -103,8 +102,8 @@ def _boxes(model: YOLO, img: np.ndarray) -> list[list[float]]:
 
 
 def _read_plate(plate_bgr: np.ndarray, models: Models) -> tuple[str, list[str]]:
-    """Notebook's double reading: Tesseract on the inverted warp, YOLO characters on the warp."""
-    letter = warp_plate(plate_bgr)
+    """Notebook's double reading: Tesseract on the inverted plate, YOLO characters on the plate."""
+    letter = prepare_plate(plate_bgr)
     text = clean_ocr_text(pytesseract.image_to_string(cv2.bitwise_not(letter), lang="eng", config="--psm 6"))
     chars = [models.letter.names[int(c)] for *_, c in _boxes(models.letter, cv2.cvtColor(letter, cv2.COLOR_GRAY2RGB))]
     return text, chars
