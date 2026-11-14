@@ -1,0 +1,12 @@
+training_results/
+videos/
+demo_output/
+docs/*.pdf
+docs/*.docx
+docs/*.pptx
+code/jupyter_history_2024.py
+code/spyder_history_2024-04-13.py
+LOCAL_FILES.md
+.superpowers/
+__pycache__/
+.pytest_cache/
