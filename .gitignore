@@ -10,3 +10,4 @@ LOCAL_FILES.md
 .superpowers/
 __pycache__/
 .pytest_cache/
+docs/superpowers/
