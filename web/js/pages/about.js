@@ -23,22 +23,22 @@ export function render(root, { records, summary, metrics }) {
     <div class="about">
       <section class="panel prose">
         <h2>What this project does</h2>
-        <p>This system reads Malaysian license plates from video. It finds a vehicle, finds its plate, and reads the plate with two independent methods. A plate is only recorded as verified when both methods agree. It was built as a final year project to automate the plate logging that guards still do by hand at the gates of housing areas, malls and office buildings.</p>
+        <p>This system reads Malaysian license plates from video. It finds a vehicle, finds its plate, and reads the plate with two independent methods. A plate is only recorded as verified when both methods agree, and the results are saved to a CSV file. It was built as a final year project to automate the plate logging that security staff still do by hand at the entrances of housing areas, malls and office buildings.</p>
 
         <h3>Background</h3>
-        <p>Malaysia has about 22 million registered vehicles for about 34 million people, roughly 66 vehicles for every 100 residents and the second-highest rate in Southeast Asia. Writing down every entry and exit by hand is slow and labour-intensive, and plates are the one feature that identifies a vehicle reliably.</p>
+        <p>Malaysia has about 22 million registered vehicles for about 34 million people, roughly 66 vehicles for every 100 residents and the second-highest rate in Southeast Asia after Brunei. Recording every entry and exit by hand is slow and inefficient, and plates are easier to identify a vehicle by than its make, model or colour. With an ageing population and younger workers less willing to take repetitive jobs, automating this work matters more.</p>
 
         <h3>Objective</h3>
-        <p>Apply computer vision to detect and read license plates automatically, so that vehicle entry and exit can be logged without a person watching the camera.</p>
+        <p>Examine how license plate detection, built on computer vision and artificial intelligence, can automate the recording of vehicles entering and leaving, and look at the trends and prospects of the technology.</p>
 
         <h3>Results</h3>
         <p>The plate detector used by the pipeline, a YOLOv8s trained from scratch, reached a validation mAP50 of ${final.best.map50.toFixed(3)}, with precision ${final.best.precision.toFixed(3)} and recall ${final.best.recall.toFixed(3)}. Across ${summary.videos} recorded test videos, the pipeline made ${summary.captures} plate captures, and ${summary.matched} of them (${formatPct(summary.match_rate)}) passed the OCR and YOLO cross-check. Every number on this site comes from that run.</p>
 
         <h3>What the experiments taught</h3>
-        <p>Fine-tuning YOLOv8s and YOLOv8m from pre-trained weights on more than 13,000 images gave excellent training scores but poor detection on real footage. Training from scratch from the model definition (.yaml) worked as expected, so all final plate models were trained that way.</p>
+        <p>Training started from pre-trained YOLOv8n weights, which gave stable results. Fine-tuning YOLOv8s and YOLOv8m from pre-trained weights on more than 13,000 images then gave excellent training scores but poor detection on real footage. Training from scratch from the model definition (.yaml) worked as expected, so the final plate detectors were trained that way. For data that differs a lot from what the pre-trained weights saw, training from scratch is often the better choice.</p>
 
         <h3>Limitations and next steps</h3>
-        <p>On these test videos both readers fail often: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so most captures end as a mismatch. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the plate, and that the fixed perspective correction leaves too little margin around plates filmed at close range. The camera also has no zoom. Next steps are reading the plate directly from the character model by ordering its boxes, a camera with zoom, a perspective correction fitted to each plate, testing newer YOLO versions, better handling of lighting and occlusion, and connecting a live camera feed.</p>
+        <p>On these test videos both readers fail often: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so most captures end as a mismatch. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the vehicle and plate, and that plates filmed at close range leave too little space after correction for OCR to read the letters. The camera also has no zoom. Next steps are reading the plate directly from the character model by ordering its boxes, a camera with zoom, trying YOLOv9, better handling of lighting, occlusion and real-time processing, and connecting a live camera feed.</p>
       </section>
 
       <section class="panel">
@@ -56,9 +56,9 @@ export function render(root, { records, summary, metrics }) {
             <table class="runs">
               <thead><tr><th>File</th><th>Job</th><th>Classes</th></tr></thead>
               <tbody>
-                <tr><th scope="row">plate.pt</th><td>Plate detection (YOLOv8s)</td><td>plate</td></tr>
-                <tr><th scope="row">plate_letter.pt</th><td>Character detection</td><td>0–9, A–Y without I, O and Z, plus back_car</td></tr>
-                <tr><th scope="row">yolov8n.pt</th><td>Vehicle detection (COCO)</td><td>only car is used</td></tr>
+                <tr><th scope="row">plate.pt</th><td>Plate detection (YOLOv8s, trained from scratch)</td><td>plate</td></tr>
+                <tr><th scope="row">plate_letter.pt</th><td>Character detection (YOLOv8n, fine-tuned)</td><td>0–9, A–Y without I, O and Z, plus back_car</td></tr>
+                <tr><th scope="row">yolov8n.pt</th><td>Vehicle detection (COCO), in place of the original car.pt</td><td>only car is used</td></tr>
               </tbody>
             </table>
           </div>
@@ -66,7 +66,8 @@ export function render(root, { records, summary, metrics }) {
         <section class="panel">
           <h2>Built with</h2>
           <ul class="stack-list">
-            <li>Python, PyTorch and Ultralytics YOLOv8 (8.1.27)</li>
+            <li>Python in an Anaconda environment</li>
+            <li>Ultralytics YOLOv8 on PyTorch, trained with CUDA on a GPU (models trained with Ultralytics 8.1 and 8.2)</li>
             <li>OpenCV for video and image processing</li>
             <li>Tesseract OCR 5 through pytesseract</li>
             <li>This dashboard: HTML, CSS, JavaScript and Chart.js 4.4.1, published with GitHub Pages</li>
