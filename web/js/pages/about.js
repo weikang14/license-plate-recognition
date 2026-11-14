@@ -58,7 +58,7 @@ export function render(root, { records, summary, metrics }) {
               <tbody>
                 <tr><th scope="row">plate.pt</th><td>Plate detection (YOLOv8s, trained from scratch)</td><td>plate</td></tr>
                 <tr><th scope="row">plate_letter.pt</th><td>Character detection (YOLOv8n, fine-tuned)</td><td>0–9, A–Y without I, O and Z, plus back_car</td></tr>
-                <tr><th scope="row">yolov8n.pt</th><td>Vehicle detection (COCO), in place of the original car.pt</td><td>only car is used</td></tr>
+                <tr><th scope="row">yolov8n.pt</th><td>Vehicle detection (COCO YOLOv8n, named car.pt in the project code)</td><td>only car is used</td></tr>
               </tbody>
             </table>
           </div>
