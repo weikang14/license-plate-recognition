@@ -3,11 +3,15 @@ import { destroyCharts, esc } from "./ui.js";
 import * as overview from "./pages/overview.js";
 import * as records from "./pages/records.js";
 import * as videos from "./pages/videos.js";
+import * as models from "./pages/models.js";
+import * as about from "./pages/about.js";
 
 export const pages = {
   overview: { title: "Overview", mod: overview },
   records: { title: "Recognition records", mod: records },
   videos: { title: "Video playback", mod: videos },
+  models: { title: "Model performance", mod: models },
+  about: { title: "About", mod: about },
 };
 
 const view = document.getElementById("view");
