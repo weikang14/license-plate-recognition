@@ -1,9 +1,13 @@
 // Loads the pre-processed data once, then renders a page per hash route: #/<page>?<params>.
 import { destroyCharts, esc } from "./ui.js";
 import * as overview from "./pages/overview.js";
+import * as records from "./pages/records.js";
+import * as videos from "./pages/videos.js";
 
 export const pages = {
   overview: { title: "Overview", mod: overview },
+  records: { title: "Recognition records", mod: records },
+  videos: { title: "Video playback", mod: videos },
 };
 
 const view = document.getElementById("view");
