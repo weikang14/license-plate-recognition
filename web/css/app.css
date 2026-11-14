@@ -292,3 +292,11 @@ figcaption { margin-top: 6px; color: var(--ink-2); font-size: 14px; }
   .filters label, .filters input, .filters select { width: 100%; min-width: 0; }
   dl.compare div, dl.facts div { grid-template-columns: 1fr; gap: 0; }
 }
+.pipeline-note {
+  max-width: 88ch;
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--warn);
+  background: #FBF6EE;
+  border-radius: 0 6px 6px 0;
+}

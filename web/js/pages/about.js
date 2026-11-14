@@ -8,7 +8,7 @@ const STEPS = [
   ["Find the plate", "A YOLOv8s plate detector trained for this project. Plates at 0.75 confidence or higher are captured, at most once every 1.5 seconds."],
   ["Straighten it", "The crop is converted to grayscale, resized and perspective-corrected so the characters sit level."],
   ["Read it twice", "Tesseract OCR reads the text, and a second YOLOv8 model detects each character on its own."],
-  ["Cross-check", "The plate is verified only when both readers find the same characters. The OCR text is kept because it preserves character order."],
+  ["Cross-check", "The plate is verified only when both readers find the same characters, compared without order. The OCR text is kept as the result."],
 ];
 
 export function render(root, { records, summary, metrics }) {
@@ -38,7 +38,7 @@ export function render(root, { records, summary, metrics }) {
         <p>Fine-tuning YOLOv8s and YOLOv8m from pre-trained weights on more than 13,000 images gave excellent training scores but poor detection on real footage. Training from scratch from the model definition (.yaml) worked as expected, so all final plate models were trained that way.</p>
 
         <h3>Limitations and next steps</h3>
-        <p>On these test videos both readers fail often: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so most captures end as a mismatch. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the plate, and that the fixed perspective correction leaves too little margin around plates filmed at close range. The camera also has no zoom. Next steps are a camera with zoom, a perspective correction fitted to each plate, testing newer YOLO versions, better handling of lighting and occlusion, and connecting a live camera feed.</p>
+        <p>On these test videos both readers fail often: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so most captures end as a mismatch. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the plate, and that the fixed perspective correction leaves too little margin around plates filmed at close range. The camera also has no zoom. Next steps are reading the plate directly from the character model by ordering its boxes, a camera with zoom, a perspective correction fitted to each plate, testing newer YOLO versions, better handling of lighting and occlusion, and connecting a live camera feed.</p>
       </section>
 
       <section class="panel">
@@ -46,6 +46,7 @@ export function render(root, { records, summary, metrics }) {
         <ol class="pipeline">
           ${STEPS.map(([t, d]) => `<li><strong>${t}</strong><span>${d}</span></li>`).join("")}
         </ol>
+        <p class="pipeline-note"><strong>Known shortcut in step 5.</strong> The character model already finds every character with its position, so sorting its boxes left to right could read the plate on its own. There was no time to build that during the project, so Tesseract supplies the character order and the cross-check only compares which characters were found, not their order.</p>
       </section>
 
       <div class="grid-2">
