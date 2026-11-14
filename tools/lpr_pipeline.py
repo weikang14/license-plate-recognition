@@ -78,8 +78,8 @@ class TimeGate:
 def prepare_plate(plate_bgr: np.ndarray) -> np.ndarray:
     """Gray and resized to width 800, as in the notebook, without its fixed perspective warp.
 
-    The notebook's warp used four fixed points tuned to one plate; on the test captures it cut
-    verified plates from 46 to 9, because it crops or skews characters for both readers.
+    The notebook's warp used four fixed points tuned to one plate; it crops or skews characters for
+    both readers, and dropping it raised verified captures on the 15 test videos from 10 to 47.
     """
     gray = cv2.cvtColor(plate_bgr, cv2.COLOR_BGR2GRAY)
     return cv2.resize(gray, (800, int(gray.shape[0] * (800 / gray.shape[1]))), interpolation=cv2.INTER_CUBIC)
