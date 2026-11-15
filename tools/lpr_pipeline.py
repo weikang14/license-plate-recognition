@@ -8,7 +8,8 @@ plate only counts when it sits on a tracked car (the original plan, so a plate p
 to the camera is ignored; the final notebook ran the plate detector on the whole frame).
 The notebook's fixed-point perspective correction was also dropped after testing (see prepare_plate),
 and both readers now read left to right, so the cross-check compares the two readings in order
-(the notebook compared sorted characters) with the character model at conf 0.4.
+(the notebook compared sorted characters) with the character model at conf 0.4. When Tesseract's
+block reading (psm 6) disagrees, the plate is read again as one raw line (psm 13).
 """
 import math
 import os
@@ -24,6 +25,7 @@ from ultralytics import YOLO
 CAPTURE_STRIDE = 7     # notebook: fps = 7 -> try a capture every 7th frame
 CAPTURE_GAP_S = 1.5    # notebook: timedelta(seconds=1.5)
 LETTER_CONF = 0.4      # character model; 0.4 verified the most captures on the test videos (0.5 in the notebook)
+OCR_PSMS = (6, 13)     # notebook's psm 6 first; psm 13 (raw line) only when psm 6 disagrees with YOLO
 
 
 def clean_ocr_text(text: str) -> str:
@@ -113,6 +115,17 @@ class Models:
         return cls(YOLO(str(d / "yolov8n.pt")), YOLO(str(d / "plate.pt")), YOLO(str(d / "plate_letter.pt")))
 
 
+def ocr_until_match(read, yolo_chars: list[str], psms: tuple[int, ...] = OCR_PSMS) -> str:
+    """read(psm) -> OCR text. Try each psm until one agrees with YOLO; if none does, keep the first reading."""
+    first = None
+    for psm in psms:
+        text = read(psm)
+        if chars_match(list(text), yolo_chars):
+            return text
+        first = text if first is None else first
+    return first
+
+
 def _boxes(model: YOLO, img: np.ndarray, conf: float = 0.5) -> list[list[float]]:
     return model(img, conf=conf, verbose=False)[0].boxes.data.tolist()
 
@@ -120,10 +133,12 @@ def _boxes(model: YOLO, img: np.ndarray, conf: float = 0.5) -> list[list[float]]
 def _read_plate(plate_bgr: np.ndarray, models: Models) -> tuple[str, list[str]]:
     """Notebook's double reading: Tesseract on the inverted plate, YOLO characters on the plate; both left to right."""
     letter = prepare_plate(plate_bgr)
-    data = pytesseract.image_to_data(cv2.bitwise_not(letter), lang="eng", config="--psm 6",
-                                     output_type=pytesseract.Output.DICT)
-    boxes = _boxes(models.letter, cv2.cvtColor(letter, cv2.COLOR_GRAY2RGB), conf=LETTER_CONF)
-    return ocr_text_left_to_right(data), reading_order(boxes, models.letter.names)
+    chars = reading_order(_boxes(models.letter, cv2.cvtColor(letter, cv2.COLOR_GRAY2RGB), conf=LETTER_CONF),
+                          models.letter.names)
+    inverted = cv2.bitwise_not(letter)
+    read = lambda psm: ocr_text_left_to_right(pytesseract.image_to_data(
+        inverted, lang="eng", config=f"--psm {psm}", output_type=pytesseract.Output.DICT))
+    return ocr_until_match(read, chars), chars
 
 
 def _draw_overlay(frame: np.ndarray, o: dict) -> None:

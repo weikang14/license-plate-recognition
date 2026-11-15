@@ -1,7 +1,7 @@
 import numpy as np
 
 from tools.lpr_pipeline import (CarTracker, TimeGate, car_under, chars_match, clean_ocr_text, is_capture_frame,
-                                ocr_text_left_to_right, prepare_plate, reading_order)
+                                ocr_text_left_to_right, ocr_until_match, prepare_plate, reading_order)
 
 
 def test_car_under_uses_the_plate_centre():
@@ -66,3 +66,15 @@ def test_time_gate():
 def test_prepare_plate_is_gray_800_wide_and_keeps_aspect():
     out = prepare_plate(np.random.randint(0, 256, (60, 200, 3), dtype=np.uint8))
     assert out.shape == (240, 800) and out.dtype == np.uint8
+
+
+def test_ocr_until_match_stops_at_the_first_reading_that_agrees_with_yolo():
+    calls = []
+    def reader(readings):
+        def read(psm):
+            calls.append(psm)
+            return readings[psm]
+        return read
+    assert ocr_until_match(reader({6: "JHB2149", 13: "X"}), list("JHB2149")) == "JHB2149" and calls == [6]
+    assert ocr_until_match(reader({6: "JHB214", 13: "JHB2149"}), list("JHB2149")) == "JHB2149"
+    assert ocr_until_match(reader({6: "JHB214", 13: ""}), list("JHB2149")) == "JHB214"  # no agreement: first reading kept
