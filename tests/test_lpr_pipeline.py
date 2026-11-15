@@ -1,7 +1,7 @@
 import numpy as np
 
 from tools.lpr_pipeline import (CarTracker, TimeGate, car_under, chars_match, clean_ocr_text, is_capture_frame,
-                                ocr_text_left_to_right, ocr_until_match, prepare_plate, reading_order)
+                                ocr_text_left_to_right, ocr_until_match, prepare_plate, reading_order, vehicle_boxes)
 
 
 def test_car_under_uses_the_plate_centre():
@@ -25,6 +25,28 @@ def test_car_tracker_keeps_ids_across_frames():
     tracker.update(three)
     new = tracker.update([(128, 100, 328, 250, 0.9), (600, 114, 800, 274, 0.8), (1202, 400, 1502, 600, 0.9)])
     assert len({t[4] for t in new}) == 3 and set(ids) < {t[4] for t in new}
+
+
+def test_car_tracker_keeps_the_id_through_a_short_gap_only():
+    def stay_then_vanish(gap_frames):
+        tracker = CarTracker(fps=30)
+        for _ in range(5):
+            seen = tracker.update([(100, 100, 300, 250, 0.9)])
+        for _ in range(gap_frames):  # the car is not detected (dip in confidence, labelled truck, occluded)
+            tracker.update([])
+        tracker.update([(100, 100, 300, 250, 0.9)])
+        back = tracker.update([(100, 100, 300, 250, 0.9)])
+        return seen[0][4], back[0][4]
+
+    old, new = stay_then_vanish(60)   # 2 s at 30 fps
+    assert new == old
+    old, new = stay_then_vanish(150)  # 5 s: a different visit
+    assert new != old
+
+
+def test_vehicle_boxes_counts_buses_and_trucks_as_vehicles():
+    rows = [[0, 0, 9, 9, 0.9, 2], [1, 1, 9, 9, 0.8, 7], [2, 2, 9, 9, 0.7, 5], [3, 3, 9, 9, 0.9, 0], [4, 4, 9, 9, 0.9, 3]]
+    assert vehicle_boxes(rows) == [(0, 0, 9, 9, 0.9), (1, 1, 9, 9, 0.8), (2, 2, 9, 9, 0.7)]  # car, truck, bus; not person, motorcycle
 
 
 def test_car_tracker_handles_frames_without_cars():

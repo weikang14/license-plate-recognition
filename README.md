@@ -14,7 +14,7 @@ A final year project that reads Malaysian license plates from video, plus a dash
 
 ## How it works
 
-1. **Find and track vehicles**: YOLOv8n (COCO) finds cars in every frame, and ByteTrack ([supervision](https://github.com/roboflow/supervision)) gives each car an id that follows it from frame to frame.
+1. **Find and track vehicles**: YOLOv8n (COCO) finds vehicles in every frame (cars, plus buses and trucks, because a car close to the camera is often labelled truck), and ByteTrack ([supervision](https://github.com/roboflow/supervision)) gives each one an id that follows it from frame to frame and survives gaps of up to 3 seconds, so a car that stays in view is not counted twice.
 2. **Find the plate**: a YOLOv8s plate detector trained for this project. A plate only counts when it sits on a tracked car, so a photo of a plate held up to the camera is ignored. Plates with confidence 0.75 or higher are captured, at most once every 1.5 seconds.
 3. **Prepare it**: the crop is converted to grayscale and enlarged to 800 pixels wide. The project's original fixed-point perspective correction was removed after testing: its fixed points crop or skew characters on most plates, and without it verified captures on the test videos rose from 10 to 47.
 4. **Read it twice**: Tesseract OCR reads the text (page mode 6), and a second YOLOv8 model detects each character at confidence 0.4. If the two readings differ, Tesseract reads the plate once more as a single raw line (page mode 13).

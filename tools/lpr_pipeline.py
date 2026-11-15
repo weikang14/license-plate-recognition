@@ -9,7 +9,9 @@ to the camera is ignored; the final notebook ran the plate detector on the whole
 The notebook's fixed-point perspective correction was also dropped after testing (see prepare_plate),
 and both readers now read left to right, so the cross-check compares the two readings in order
 (the notebook compared sorted characters) with the character model at conf 0.4. When Tesseract's
-block reading (psm 6) disagrees, the plate is read again as one raw line (psm 13).
+block reading (psm 6) disagrees, the plate is read again as one raw line (psm 13). The tracker counts buses
+and trucks as vehicles (a car close to the camera is often labelled truck) and keeps a lost car's id for 3 s,
+so a car that stays in view is not counted again.
 """
 import math
 import os
@@ -25,6 +27,8 @@ from ultralytics import YOLO
 CAPTURE_STRIDE = 7     # notebook: fps = 7 -> try a capture every 7th frame
 CAPTURE_GAP_S = 1.5    # notebook: timedelta(seconds=1.5)
 LETTER_CONF = 0.4      # character model; 0.4 verified the most captures on the test videos (0.5 in the notebook)
+VEHICLE_CLASSES = {2, 5, 7}  # COCO car, bus, truck; the notebook used car only
+TRACK_BUFFER_S = 3     # a lost car keeps its id this long (ByteTrack's default is 1 s)
 OCR_PSMS = (6, 13)     # notebook's psm 6 first; psm 13 (raw line) only when psm 6 disagrees with YOLO
 
 
@@ -51,6 +55,11 @@ def ocr_text_left_to_right(data: dict) -> str:
     return "".join(clean_ocr_text(w) for _, w in sorted(zip(data["left"], data["text"])))
 
 
+def vehicle_boxes(rows: list[list[float]]) -> list[tuple]:
+    """COCO detections (x1, y1, x2, y2, score, cls) -> vehicle boxes (x1, y1, x2, y2, score) for the tracker."""
+    return [(x1, y1, x2, y2, s) for x1, y1, x2, y2, s, c in rows if int(c) in VEHICLE_CLASSES]
+
+
 def car_under(plate: tuple, cars: list[tuple]) -> int | None:
     """Id of the tracked car (x1, y1, x2, y2, id) whose box holds the plate's centre, else None."""
     cx, cy = (plate[0] + plate[2]) / 2, (plate[1] + plate[3]) / 2
@@ -61,7 +70,8 @@ class CarTracker:
     """ByteTrack (supervision) over the car detections, so each car keeps one id across frames."""
 
     def __init__(self, fps: float):
-        self._tracker = sv.ByteTrack(frame_rate=max(1, round(fps)))
+        # supervision counts the buffer in 30 fps frames and rescales it to the video's frame rate
+        self._tracker = sv.ByteTrack(lost_track_buffer=TRACK_BUFFER_S * 30, frame_rate=max(1, round(fps)))
 
     def update(self, boxes: list[tuple]) -> list[tuple]:
         """boxes: (x1, y1, x2, y2, score) for this frame -> tracked (x1, y1, x2, y2, id)."""
@@ -105,7 +115,7 @@ def prepare_plate(plate_bgr: np.ndarray) -> np.ndarray:
 
 @dataclass
 class Models:
-    car: YOLO     # COCO yolov8n, only class 2 (car) is used
+    car: YOLO     # COCO yolov8n, only car, bus and truck are used
     plate: YOLO
     letter: YOLO  # 0-9, A-Y (no I/O/Z), back_car
 
@@ -126,8 +136,8 @@ def ocr_until_match(read, yolo_chars: list[str], psms: tuple[int, ...] = OCR_PSM
     return first
 
 
-def _boxes(model: YOLO, img: np.ndarray, conf: float = 0.5) -> list[list[float]]:
-    return model(img, conf=conf, verbose=False)[0].boxes.data.tolist()
+def _boxes(model: YOLO, img: np.ndarray, conf: float = 0.5, **kw) -> list[list[float]]:
+    return model(img, conf=conf, verbose=False, **kw)[0].boxes.data.tolist()
 
 
 def _read_plate(plate_bgr: np.ndarray, models: Models) -> tuple[str, list[str]]:
@@ -183,8 +193,7 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
                 break
             frames = frame_no
             clean = frame.copy() if writer is not None else frame  # crops come from the undrawn frame
-            cars = tracker.update([(x1, y1, x2, y2, s) for x1, y1, x2, y2, s, cls in _boxes(models.car, clean)
-                                   if int(cls) == 2])
+            cars = tracker.update(vehicle_boxes(_boxes(models.car, clean, agnostic_nms=True)))  # one box per vehicle, not car + truck
             car_ids.update(c[4] for c in cars)
             if writer is not None:
                 for x1, y1, x2, y2, car_id in cars:
