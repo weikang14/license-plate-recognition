@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))  # so `python tools/build_site_data.py` can import tools.*
 
 from tools.lpr_pipeline import Models, process_video  # noqa: E402
-from tools.site_data import build_metrics, select_playback, summarize  # noqa: E402
+from tools.site_data import build_metrics, letter_model_scores, select_playback, summarize  # noqa: E402
 
 TR = ROOT / "training_results"
 RUNS = [
@@ -97,6 +97,7 @@ def main(argv: list[str] | None = None) -> None:
               flush=True)
 
     metrics = build_metrics(RUNS, FINAL, out / "plots")
+    metrics["letter"] = letter_model_scores(ROOT / "models" / "plate_letter.pt")
     map50 = next(r for r in metrics["runs"] if r["key"] == FINAL)["best"]["map50"]
     chosen = select_playback(summarize(records, infos, map50, set())["per_video"], args.playback)
 

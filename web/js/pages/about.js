@@ -22,6 +22,8 @@ export function render(root, { records, summary, metrics }) {
   const final = metrics.runs.find((r) => r.key === metrics.final);
   const noText = records.filter((r) => !r.plate).length;
   const verifiedLine = describeVerified(records.filter((r) => r.match).map((r) => r.plate), summary.matched);
+  const vehicles = (rs) => new Set(rs.map((r) => `${r.video}#${r.car_id}`)).size;
+  const perVehicle = `Counted per vehicle, ${vehicles(records.filter((r) => r.match))} of the ${vehicles(records)} vehicles with a plate capture got at least one verified reading.`;
 
   root.innerHTML = `
     <div class="about">
@@ -36,7 +38,7 @@ export function render(root, { records, summary, metrics }) {
         <p>Examine how license plate detection, built on computer vision and artificial intelligence, can automate the recording of vehicles entering and leaving, and look at the trends and prospects of the technology.</p>
 
         <h3>Results</h3>
-        <p>The plate detector used by the pipeline, a YOLOv8s trained from scratch, reached a validation mAP50 of ${final.best.map50.toFixed(3)}, with precision ${final.best.precision.toFixed(3)} and recall ${final.best.recall.toFixed(3)}. Across ${summary.videos} recorded test videos, the pipeline tracked ${summary.vehicles} vehicles and made ${summary.captures} plate captures, and ${summary.matched} of them (${formatPct(summary.match_rate)}) passed the OCR and YOLO cross-check. Every number on this site comes from that run.</p>
+        <p>The plate detector used by the pipeline, a YOLOv8s trained from scratch, reached a validation mAP50 of ${final.best.map50.toFixed(3)}, with precision ${final.best.precision.toFixed(3)} and recall ${final.best.recall.toFixed(3)}. Across ${summary.videos} recorded test videos, the pipeline tracked ${summary.vehicles} vehicles and made ${summary.captures} plate captures, and ${summary.matched} of them (${formatPct(summary.match_rate)}) passed the OCR and YOLO cross-check. ${perVehicle} Every number on this site comes from that run.</p>
 
         <h3>What the experiments taught</h3>
         <p>Training started from pre-trained YOLOv8n weights, which gave stable results. Fine-tuning YOLOv8s and YOLOv8m from pre-trained weights on more than 13,000 images then gave excellent training scores but poor detection on real footage. Training from scratch from the model definition (.yaml) worked as expected, so the final plate detectors were trained that way. For data that differs a lot from what the pre-trained weights saw, training from scratch is often the better choice.</p>
@@ -58,12 +60,12 @@ export function render(root, { records, summary, metrics }) {
         <section class="panel">
           <h2>Models</h2>
           <div class="table-wrap">
-            <table class="runs">
+            <table class="runs wrap">
               <thead><tr><th>File</th><th>Job</th><th>Classes</th></tr></thead>
               <tbody>
                 <tr><th scope="row">plate.pt</th><td>Plate detection (YOLOv8s, trained from scratch)</td><td>plate</td></tr>
                 <tr><th scope="row">plate_letter.pt</th><td>Character detection (YOLOv8n, fine-tuned)</td><td>0–9, A–Y without I, O and Z, plus back_car</td></tr>
-                <tr><th scope="row">yolov8n.pt</th><td>Vehicle detection (COCO YOLOv8n, named car.pt in the project code)</td><td>only car is used</td></tr>
+                <tr><th scope="row">yolov8n.pt</th><td>Vehicle detection (COCO YOLOv8n, named car.pt in the project code)</td><td>car, bus and truck are used</td></tr>
               </tbody>
             </table>
           </div>

@@ -33,6 +33,20 @@ A final year project that reads Malaysian license plates from video, plus a dash
 
 The plate detector is reliable; reading the plate is the weak step. Tesseract returned no text on 33 of 149 captures, and the character model often misses a character, so the strict cross-check still rejects about three in five captures. The verified captures are two plates, JHB 2149 and VEW 6482, seen in 10 of the 15 videos. Close-up shots where the whole car is not in view are skipped on purpose: without a tracked car there is nothing to prove the plate is on a real vehicle. Removing the fixed perspective correction raised verified captures from 10 (6.7%) to 47 (31.5%) on the same footage; the project report had already noted that it left too little margin around plates filmed at close range. Comparing the readings in left-to-right order, with the character model at confidence 0.4 and a second Tesseract pass as a single line, then raised them to 60 (40.3%) and removed the one capture that had passed out of order (2149JHB). Every mismatch is listed on the site with both readings side by side.
 
+## Speed
+
+Time per stage on one 1080p frame, measured with `tools/benchmark.py` (also on the site's Model performance page):
+
+| Stage | Runs | Laptop CPU (Core i5-12450H) | Laptop GPU (RTX 4060) |
+|---|---|---|---|
+| Vehicle detection (YOLOv8n) | every frame | 75.8 ms | 10.6 ms |
+| Plate detection (YOLOv8s) | every 7th frame | 120.7 ms | 10.4 ms |
+| Character detection (YOLOv8n) | per capture | 58.4 ms | 13.8 ms |
+| Tesseract OCR | per capture, twice if psm 13 is needed | 152.1 ms | CPU only |
+| **Frames per second** (vehicles + plates) | | **11 fps** | **83 fps** |
+
+The site data was built on the CPU, at about 11 fps, below the cameras' 25-30 fps. On the GPU the detectors run at about 83 fps, and Tesseract, which has no GPU version and runs at most once every 1.5 seconds per capture, becomes the slowest step. CPU: PyTorch 2.3.1 with Ultralytics 8.1.27; GPU: PyTorch 2.7.0 with Ultralytics 8.3.127.
+
 ## Repository layout
 
 ```
@@ -41,6 +55,7 @@ models/                                    plate.pt, plate_letter.pt, yolov8n.pt
 tools/lpr_pipeline.py                      the notebook's pipeline as a module
 tools/build_site_data.py                   runs the pipeline on test videos, writes web/data/
 tools/site_data.py                         metrics and summary for the dashboard
+tools/benchmark.py                         times each stage on CPU or GPU, writes web/speed.json
 tools/serve.py                             local static server (supports video seeking)
 web/                                       the dashboard (plain HTML, CSS, JS and Chart.js)
 tests/                                     pytest and node tests
@@ -56,10 +71,11 @@ Then open http://127.0.0.1:8765. (`python -m http.server` also works, but it can
 
 ## Regenerate the site data
 
-Needs Python with `ultralytics`, `supervision`, `opencv-python` and `pytesseract`, plus [Tesseract OCR](https://github.com/UB-Mannheim/tesseract) and [ffmpeg](https://ffmpeg.org/). Point `TESSERACT_CMD` and `FFMPEG` at them if they are not on `PATH`. The raw test videos (`videos/`) and the training runs (`training_results/`) are kept locally and are not in this repository; tests that need them are skipped when they are missing.
+Needs Python 3.11 with the packages in `requirements.txt` (`pip install -r requirements.txt`), plus [Tesseract OCR](https://github.com/UB-Mannheim/tesseract) and [ffmpeg](https://ffmpeg.org/). Point `TESSERACT_CMD` and `FFMPEG` at them if they are not on `PATH`. The raw test videos (`videos/`) and the training runs (`training_results/`) are kept locally and are not in this repository; tests that need them are skipped when they are missing.
 
 ```
 python tools/build_site_data.py --videos path/to/test/videos --out web/data --playback 4
+python tools/benchmark.py --device cpu      # or --device 0 for the first CUDA GPU
 python -m pytest tests
 node --test "tests/web/*.test.mjs"
 ```

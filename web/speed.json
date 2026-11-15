@@ -1,0 +1,21 @@
+{
+ "cpu": {
+  "hardware": "Intel Core i5-12450H (laptop CPU)",
+  "frame": "1920x1080",
+  "torch": "2.3.1",
+  "ultralytics": "8.1.27",
+  "vehicle_ms": 75.8,
+  "plate_ms": 120.7,
+  "characters_ms": 58.4,
+  "tesseract_ms": 152.1
+ },
+ "gpu": {
+  "hardware": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "frame": "1920x1080",
+  "torch": "2.7.0+cu126",
+  "ultralytics": "8.3.127",
+  "vehicle_ms": 10.6,
+  "plate_ms": 10.4,
+  "characters_ms": 13.8
+ }
+}

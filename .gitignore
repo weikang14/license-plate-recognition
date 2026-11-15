@@ -11,3 +11,5 @@ LOCAL_FILES.md
 __pycache__/
 .pytest_cache/
 docs/superpowers/
+
+docs/improvement-plan.*

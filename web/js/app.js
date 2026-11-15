@@ -22,8 +22,8 @@ let data;
 
 async function loadData() {
   const out = {};
-  for (const name of ["records", "summary", "metrics"]) {
-    const file = `data/${name}.json`;
+  const files = { records: "data/records.json", summary: "data/summary.json", metrics: "data/metrics.json", speed: "speed.json" };
+  for (const [name, file] of Object.entries(files)) {
     let res;
     try {
       res = await fetch(file);

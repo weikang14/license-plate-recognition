@@ -8,7 +8,7 @@ export function render(root, { records, summary }) {
     ["Videos processed", s.videos],
     ["Vehicles tracked", s.vehicles],
     ["Plate captures", s.captures],
-    ["Verified plates", s.matched, "ok"],
+    ["Verified captures", s.matched, "ok"],
     ["Verification rate", formatPct(s.match_rate)],
     ["Final model mAP50", s.map50.toFixed(3)],
   ];

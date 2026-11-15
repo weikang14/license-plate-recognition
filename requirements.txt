@@ -1,0 +1,8 @@
+# Versions used to build the published site data (Python 3.11).
+ultralytics==8.1.27
+supervision==0.25.1
+opencv-python==4.9.0.80
+pytesseract==0.3.10
+numpy==1.26.4
+torch>=2.2  # the CPU build is enough; install a CUDA build from pytorch.org to run on a GPU
+# Not pip packages: Tesseract OCR 5 and ffmpeg (see README).

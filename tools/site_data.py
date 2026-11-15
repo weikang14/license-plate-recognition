@@ -38,6 +38,14 @@ def load_run(run_dir: Path) -> dict:
     }
 
 
+def letter_model_scores(pt: Path) -> dict:
+    """Validation scores Ultralytics stored in the character model's checkpoint (its training run is not kept)."""
+    import torch  # only needed here; the rest of this module is plain Python
+    m = torch.load(pt, map_location="cpu", weights_only=False)["train_metrics"]
+    names = {"precision": "precision", "recall": "recall", "map50": "mAP50", "map50_95": "mAP50-95"}
+    return {k: round(m[f"metrics/{v}(B)"], 3) for k, v in names.items()}
+
+
 def build_metrics(runs: list[tuple[str, str, Path]], final_key: str, plots_out: Path) -> dict:
     """Load every run and copy the final run's plot images into plots_out."""
     plots_out = Path(plots_out)

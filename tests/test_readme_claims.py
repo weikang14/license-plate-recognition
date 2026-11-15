@@ -17,3 +17,12 @@ def test_readme_failure_claims_match_records():
         assert f"All {sum(r['match'] for r in records)} verified captures are the same plate" in text
         assert plate[:3] in text
     assert "often reads the same plate correctly" not in text
+
+
+def test_readme_speed_table_matches_the_benchmark():
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    speed = json.loads((ROOT / "web" / "speed.json").read_text(encoding="utf-8"))
+    for device in speed.values():
+        for key, value in device.items():
+            if key.endswith("_ms"):
+                assert f"{value} ms" in text, f"{device['hardware']} {key} = {value} ms is not in the README"

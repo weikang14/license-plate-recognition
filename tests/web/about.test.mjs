@@ -40,3 +40,21 @@ test("about explains the in-order cross-check", () => {
   assert.match(root.innerHTML, /left-to-right order/);
   assert.doesNotMatch(root.innerHTML, /compared without order|Known shortcut/);
 });
+
+test("about counts vehicles with at least one verified reading", () => {
+  const root = { innerHTML: "" };
+  const recs = [
+    { video: "a", car_id: 1, plate: "JHB2149", match: true },
+    { video: "a", car_id: 1, plate: "", match: false },
+    { video: "a", car_id: 2, plate: "", match: false },
+    { video: "b", car_id: 1, plate: "VEW6482", match: true },
+  ];
+  render(root, { records: recs, summary: { ...summary, captures: 4, matched: 2 }, metrics });
+  assert.match(root.innerHTML, /2 of the 3 vehicles with a plate capture got at least one verified reading/);
+});
+
+test("about says the vehicle detector also keeps buses and trucks", () => {
+  const root = { innerHTML: "" };
+  render(root, { records, summary, metrics });
+  assert.match(root.innerHTML, /car, bus and truck are used/);
+});

@@ -205,6 +205,7 @@ tbody th { font-weight: 600; }
 .records tbody tr { cursor: pointer; }
 .records tbody tr:hover { background: var(--paper); }
 .runs tr.final { background: #EEF4FA; }
+.wrap th, .wrap td { white-space: normal; }
 .runs tr.final th { color: var(--sign); }
 .pager { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; color: var(--ink-2); }
 .pager button, .close, .button, .video-tabs button {

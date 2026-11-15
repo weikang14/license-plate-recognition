@@ -1,13 +1,54 @@
-// Model performance: the three plate-detector training runs, their curves and the final run's plots.
+// Model performance: the plate-detector training runs, the character model's scores, speed, and the final run's plots.
 import { COLORS, esc, makeChart } from "../ui.js";
 
 const LINE_COLORS = [COLORS.sign, COLORS.warn, COLORS.muted];
+const f3 = (x) => x.toFixed(3);
 
-export function render(root, { metrics }) {
+const STAGES = [
+  ["vehicle_ms", "Vehicle detection (YOLOv8n)", "every frame"],
+  ["plate_ms", "Plate detection (YOLOv8s)", "every 7th frame"],
+  ["characters_ms", "Character detection (YOLOv8n)", "per capture"],
+  ["tesseract_ms", "Tesseract OCR", "per capture, twice if psm 13 is needed"],
+];
+
+export function letterPanel(s) {
+  return `
+      <section class="panel">
+        <h2>Character detector <small>plate_letter.pt, YOLOv8n fine-tuned from COCO weights</small></h2>
+        <div class="table-wrap">
+          <table class="runs">
+            <thead><tr><th>Precision</th><th>Recall</th><th>mAP50</th><th>mAP50-95</th></tr></thead>
+            <tbody><tr><td>${f3(s.precision)}</td><td>${f3(s.recall)}</td><td>${f3(s.map50)}</td><td>${f3(s.map50_95)}</td></tr></tbody>
+          </table>
+        </div>
+        <p class="muted">Validation scores stored in the model file. It detects 0–9 and A–Y without I, O and Z, plus a back_car class. Its training run is not in this repository.</p>
+      </section>`;
+}
+
+export function speedPanel(speed) {
+  const devs = Object.values(speed);
+  const cell = (ms) => (ms == null ? "CPU only" : `${ms} ms`);
+  const fps = (d) => Math.round(1000 / (d.vehicle_ms + d.plate_ms / 7));
+  return `
+      <section class="panel">
+        <h2>Speed <small>one 1080p frame, measured with tools/benchmark.py</small></h2>
+        <div class="table-wrap">
+          <table class="runs">
+            <thead><tr><th>Stage</th><th>Runs</th>${devs.map((d) => `<th>${esc(d.hardware)}</th>`).join("")}</tr></thead>
+            <tbody>${STAGES.map(([key, label, when]) => `
+              <tr><th scope="row">${label}</th><td>${when}</td>${devs.map((d) => `<td>${cell(d[key])}</td>`).join("")}</tr>`).join("")}
+              <tr class="final"><th scope="row">Frames per second</th><td>vehicles + plates</td>${devs.map((d) => `<td>${fps(d)} fps</td>`).join("")}</tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">Frames per second leaves out video decoding and the per-capture steps, which run at most once every 1.5 seconds. Tesseract has no GPU version. ${devs.map((d) => `${esc(d.hardware)}: PyTorch ${esc(d.torch)}, Ultralytics ${esc(d.ultralytics)}.`).join(" ")}</p>
+      </section>`;
+}
+
+export function render(root, { metrics, speed }) {
   const runs = metrics.runs;
   const final = runs.find((r) => r.key === metrics.final);
   const p = metrics.plots;
-  const f3 = (x) => x.toFixed(3);
 
   root.innerHTML = `
     <div class="stack">
@@ -24,7 +65,7 @@ export function render(root, { metrics }) {
           </table>
         </div>
         <p class="muted">All three runs detect a single plate class and were trained from scratch (model .yaml, no pre-trained weights) on the same Roboflow dataset. The highlighted run is the model used by the pipeline.</p>
-      </section>
+      </section>${metrics.letter ? letterPanel(metrics.letter) : ""}${speed ? speedPanel(speed) : ""}
       <div class="grid-2">
         <section class="panel">
           <h2>Validation mAP50-95 per epoch</h2>

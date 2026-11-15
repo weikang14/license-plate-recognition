@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.site_data import build_metrics, load_run, select_playback, summarize
+from tools.site_data import build_metrics, letter_model_scores, load_run, select_playback, summarize
 
 ROOT = Path(__file__).resolve().parent.parent
 FINAL = ROOT / "training_results" / "Results_yolov8s" / "yolov8s_yaml(3)"
@@ -74,3 +74,8 @@ def test_select_playback():
     per_video = [{"video": f"v{i}", "matched": m, "captures": c}
                  for i, (m, c) in enumerate(zip([5, 0, 5, 9, 1, 2], [6, 3, 8, 9, 1, 2]))]
     assert select_playback(per_video, k=4) == ["v3", "v2", "v0", "v5"]
+
+
+def test_letter_model_scores_come_from_the_checkpoint():
+    assert letter_model_scores(ROOT / "models" / "plate_letter.pt") == {
+        "precision": 0.949, "recall": 0.904, "map50": 0.96, "map50_95": 0.789}
