@@ -7,29 +7,15 @@ const STEPS = [
   ["Find and track vehicles", "YOLOv8n (COCO) finds cars in every frame, and ByteTrack (supervision) gives each car an id that follows it from frame to frame."],
   ["Find the plate", "A YOLOv8s plate detector trained for this project. A plate only counts when it sits on a tracked car, so a photo of a plate held up to the camera is ignored. Plates at 0.75 confidence or higher are captured, at most once every 1.5 seconds."],
   ["Prepare it", "The crop is converted to grayscale and enlarged to 800 pixels wide. The project's fixed perspective correction is no longer used (see What the experiments taught)."],
-  ["Read it twice", "Tesseract OCR reads the text, and a second YOLOv8 model detects each character on its own."],
-  ["Cross-check", "The plate is verified only when both readers find the same characters, compared without order. The OCR text is kept as the result."],
+  ["Read it twice", "Tesseract OCR reads the text, and a second YOLOv8 model detects each character on its own. If the two readings differ, Tesseract reads the plate once more as a single line of text."],
+  ["Cross-check", "Both readings are put in left-to-right order, and the plate is verified only when they are identical."],
 ];
 
-// Readings with the same characters are one plate (the cross-check ignores order); its most common reading names it.
 function describeVerified(plates, n) {
-  const groups = new Map();
-  for (const p of plates) {
-    const key = [...p].sort().join("");
-    const counts = groups.get(key) ?? new Map();
-    groups.set(key, counts.set(p, (counts.get(p) ?? 0) + 1));
-  }
-  const names = [...groups.values()].map((c) => [...c].sort((a, b) => b[1] - a[1])[0][0]);
-  const odd = plates.filter((p) => !names.includes(p));
-  if (names.length === 1 && !odd.length) return `All ${n} verified captures are the same plate, ${formatPlate(names[0])}.`;
-  const list = names.map(formatPlate);
-  const listed = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list.at(-1)}` : list[0];
-  let line = `The ${n} verified captures are ${names.length} plate${names.length > 1 ? "s" : ""}, ${listed}.`;
-  if (odd.length) {
-    line += ` ${odd.length} of them passed with ${odd.length > 1 ? "their" : "its"} characters out of order`
-      + ` (${[...new Set(odd)].map(formatPlate).join(", ")}), because the cross-check ignores order.`;
-  }
-  return line;
+  const names = [...new Set(plates)].map(formatPlate);
+  if (!names.length) return "No capture passed the cross-check.";
+  if (names.length === 1) return `All ${n} verified captures are the same plate, ${names[0]}.`;
+  return `The ${n} verified captures are ${names.length} plates, ${names.slice(0, -1).join(", ")} and ${names.at(-1)}.`;
 }
 
 export function render(root, { records, summary, metrics }) {
@@ -54,10 +40,10 @@ export function render(root, { records, summary, metrics }) {
 
         <h3>What the experiments taught</h3>
         <p>Training started from pre-trained YOLOv8n weights, which gave stable results. Fine-tuning YOLOv8s and YOLOv8m from pre-trained weights on more than 13,000 images then gave excellent training scores but poor detection on real footage. Training from scratch from the model definition (.yaml) worked as expected, so the final plate detectors were trained that way. For data that differs a lot from what the pre-trained weights saw, training from scratch is often the better choice.</p>
-        <p>After the project, the reading step was tested on the saved plate snapshots. The original perspective correction used four fixed points that suit one plate position, so on most plates it cropped or skewed characters for both readers. Rerunning all 15 test videos without it raised verified captures from 10 to 47 (6.7% to 31.5%), so it was removed. Limiting OCR to the letters used on Malaysian plates (no I, O or Z) made no difference to the cross-check.</p>
+        <p>After the project, the reading step was tested on the saved plate snapshots. The original perspective correction used four fixed points that suit one plate position, so on most plates it cropped or skewed characters for both readers. Rerunning all 15 test videos without it raised verified captures from 10 to 47 (6.7% to 31.5%), so it was removed. Comparing the two readings in left-to-right order, with the character model at confidence 0.4 and a second Tesseract pass that reads the plate as a single line, then raised them to 60 (40.3%), with no plate passing out of order. Limiting OCR to the letters used on Malaysian plates (no I, O or Z) made no difference to the cross-check.</p>
 
         <h3>Limitations and next steps</h3>
-        <p>On these test videos both readers fail often: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so most captures end as a mismatch. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the vehicle and plate, and that plates filmed at close range left too little space after correction for OCR to read the letters; that correction has since been removed. The camera also has no zoom. Next steps are reading the plate directly from the character model by ordering its boxes, a camera with zoom, trying YOLOv9, better handling of lighting, occlusion and real-time processing, and connecting a live camera feed.</p>
+        <p>On these test videos both readers fail often: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so most captures end as a mismatch. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the vehicle and plate, and that plates filmed at close range left too little space after correction for OCR to read the letters; that correction has since been removed. The camera also has no zoom. Next steps are a stronger OCR step, which is now the weaker reader, support for two-row plates, a camera with zoom, trying YOLOv9, better handling of lighting, occlusion and real-time processing, and connecting a live camera feed.</p>
       </section>
 
       <section class="panel">
@@ -65,7 +51,7 @@ export function render(root, { records, summary, metrics }) {
         <ol class="pipeline">
           ${STEPS.map(([t, d]) => `<li><strong>${t}</strong><span>${d}</span></li>`).join("")}
         </ol>
-        <p class="pipeline-note"><strong>Known shortcut in step 5.</strong> The character model returns the characters it finds in a scrambled order, because YOLO lists detections by confidence rather than by position. During the project no way was found to put them back in reading order, so Tesseract supplies the order and the cross-check only compares which characters were found, not their order. Sorting the character boxes by their horizontal position would fix this, and is listed under next steps.</p>
+        <p class="pipeline-note"><strong>Fixed after the project: reading order.</strong> The character model returns its characters in confidence order, not reading order, and during the project no way was found to put them back in order. The original cross-check therefore only compared which characters were found, so a reading like 2149JHB could pass for JHB 2149. Both readings are now put in left-to-right order, the character boxes by their horizontal position and Tesseract's words by theirs, and compared exactly, with the character model at confidence 0.4 instead of 0.5. This works for single-row plates; two-row plates would need the boxes grouped by row first.</p>
       </section>
 
       <div class="grid-2">

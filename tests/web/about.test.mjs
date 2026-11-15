@@ -27,10 +27,16 @@ test("about explains tracking and reports the vehicle count", () => {
   assert.match(root.innerHTML, /photo of a plate/);
 });
 
-test("about counts plates by their characters and flags out-of-order passes", () => {
+test("about lists each verified plate once", () => {
   const root = { innerHTML: "" };
-  const recs = ["JHB2149", "JHB2149", "2149JHB", "VEW6482"].map((plate) => ({ plate, match: true }));
-  render(root, { records: recs, summary: { ...summary, captures: 4, matched: 4 }, metrics });
-  assert.match(root.innerHTML, /The 4 verified captures are 2 plates, JHB 2149 and VEW 6482\./);
-  assert.match(root.innerHTML, /1 of them passed with its characters out of order \(2149 JHB\)/);
+  const recs = ["JHB2149", "VEW6482", "JHB2149"].map((plate) => ({ plate, match: true }));
+  render(root, { records: recs, summary: { ...summary, captures: 3, matched: 3 }, metrics });
+  assert.match(root.innerHTML, /The 3 verified captures are 2 plates, JHB 2149 and VEW 6482\./);
+});
+
+test("about explains the in-order cross-check", () => {
+  const root = { innerHTML: "" };
+  render(root, { records, summary, metrics });
+  assert.match(root.innerHTML, /left-to-right order/);
+  assert.doesNotMatch(root.innerHTML, /compared without order|Known shortcut/);
 });

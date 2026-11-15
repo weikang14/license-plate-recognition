@@ -5,7 +5,7 @@ import { esc, plateChip } from "../ui.js";
 const PAGE_SIZE = 25;
 const resultTag = (r) =>
   r.match ? '<span class="tag tag-ok">Verified</span>' : '<span class="tag tag-warn">Mismatch</span>';
-const sortedChars = (chars) => (chars.length ? esc([...chars].sort().join(" ")) : DASH);
+const spaced = (chars) => (chars.length ? esc(chars.join(" ")) : DASH);
 
 export function render(root, { records, summary }, params) {
   const playable = new Set(summary.per_video.filter((p) => p.playback).map((p) => p.video));
@@ -73,11 +73,10 @@ export function render(root, { records, summary }, params) {
       </div>
       <img class="detail-img" src="${esc(r.crop)}" alt="Captured plate ${esc(r.plate)}">
       <dl class="compare">
-        <div><dt>Tesseract OCR text</dt><dd>${r.plate ? esc(r.plate) : DASH}</dd></div>
-        <div><dt>OCR characters, sorted</dt><dd>${sortedChars([...(r.plate || "")])}</dd></div>
-        <div><dt>YOLO characters, sorted</dt><dd>${sortedChars(r.yolo_chars)}</dd></div>
+        <div><dt>Tesseract OCR, left to right</dt><dd>${spaced([...(r.plate || "")])}</dd></div>
+        <div><dt>YOLO characters, left to right</dt><dd>${spaced(r.yolo_chars)}</dd></div>
       </dl>
-      <p class="muted">A plate is verified only when both sorted lists are identical.</p>
+      <p class="muted">A plate is verified only when both readings are identical.</p>
       <dl class="facts">
         <div><dt>Video</dt><dd>${esc(r.video)}</dd></div>
         <div><dt>Vehicle</dt><dd>#${r.car_id}, tracked by ByteTrack</dd></div>
