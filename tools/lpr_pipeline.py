@@ -6,7 +6,9 @@ are recorded too, each record keeps its frame number and time in the video, and 
 are cropped from the undrawn frame. After the FYP, cars are tracked with ByteTrack and a
 plate only counts when it sits on a tracked car (the original plan, so a plate photo held up
 to the camera is ignored; the final notebook ran the plate detector on the whole frame).
-The notebook's fixed-point perspective correction was also dropped after testing (see prepare_plate).
+The notebook's fixed-point perspective correction was also dropped after testing (see prepare_plate),
+and both readers now read left to right, so the cross-check compares the two readings in order
+(the notebook compared sorted characters) with the character model at conf 0.4.
 """
 import math
 import os
@@ -21,6 +23,7 @@ from ultralytics import YOLO
 
 CAPTURE_STRIDE = 7     # notebook: fps = 7 -> try a capture every 7th frame
 CAPTURE_GAP_S = 1.5    # notebook: timedelta(seconds=1.5)
+LETTER_CONF = 0.4      # character model; 0.4 verified the most captures on the test videos (0.5 in the notebook)
 
 
 def clean_ocr_text(text: str) -> str:
@@ -29,8 +32,21 @@ def clean_ocr_text(text: str) -> str:
 
 
 def chars_match(ocr_chars: list[str], yolo_chars: list[str]) -> bool:
-    """A plate counts only when OCR and YOLO saw the same characters."""
-    return sorted(ocr_chars) == sorted(yolo_chars) and len(yolo_chars) > 0
+    """A plate counts only when OCR and YOLO read the same characters in the same order."""
+    return list(ocr_chars) == list(yolo_chars) and len(yolo_chars) > 0
+
+
+def reading_order(boxes: list[list[float]], names: dict) -> list[str]:
+    """Character boxes (x1, y1, x2, y2, score, cls) -> characters left to right; back_car is not a character.
+
+    ponytail: single-row plates only; two-row plates need grouping by row first.
+    """
+    return [names[int(c)] for x1, _, x2, _, _, c in sorted(boxes, key=lambda b: b[0] + b[2]) if len(names[int(c)]) == 1]
+
+
+def ocr_text_left_to_right(data: dict) -> str:
+    """pytesseract image_to_data output -> cleaned words joined left to right (Tesseract may put them on separate lines)."""
+    return "".join(clean_ocr_text(w) for _, w in sorted(zip(data["left"], data["text"])))
 
 
 def car_under(plate: tuple, cars: list[tuple]) -> int | None:
@@ -97,16 +113,17 @@ class Models:
         return cls(YOLO(str(d / "yolov8n.pt")), YOLO(str(d / "plate.pt")), YOLO(str(d / "plate_letter.pt")))
 
 
-def _boxes(model: YOLO, img: np.ndarray) -> list[list[float]]:
-    return model(img, conf=0.5, verbose=False)[0].boxes.data.tolist()
+def _boxes(model: YOLO, img: np.ndarray, conf: float = 0.5) -> list[list[float]]:
+    return model(img, conf=conf, verbose=False)[0].boxes.data.tolist()
 
 
 def _read_plate(plate_bgr: np.ndarray, models: Models) -> tuple[str, list[str]]:
-    """Notebook's double reading: Tesseract on the inverted plate, YOLO characters on the plate."""
+    """Notebook's double reading: Tesseract on the inverted plate, YOLO characters on the plate; both left to right."""
     letter = prepare_plate(plate_bgr)
-    text = clean_ocr_text(pytesseract.image_to_string(cv2.bitwise_not(letter), lang="eng", config="--psm 6"))
-    chars = [models.letter.names[int(c)] for *_, c in _boxes(models.letter, cv2.cvtColor(letter, cv2.COLOR_GRAY2RGB))]
-    return text, chars
+    data = pytesseract.image_to_data(cv2.bitwise_not(letter), lang="eng", config="--psm 6",
+                                     output_type=pytesseract.Output.DICT)
+    boxes = _boxes(models.letter, cv2.cvtColor(letter, cv2.COLOR_GRAY2RGB), conf=LETTER_CONF)
+    return ocr_text_left_to_right(data), reading_order(boxes, models.letter.names)
 
 
 def _draw_overlay(frame: np.ndarray, o: dict) -> None:

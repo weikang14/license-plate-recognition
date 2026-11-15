@@ -1,7 +1,7 @@
 import numpy as np
 
 from tools.lpr_pipeline import (CarTracker, TimeGate, car_under, chars_match, clean_ocr_text, is_capture_frame,
-                                prepare_plate)
+                                ocr_text_left_to_right, prepare_plate, reading_order)
 
 
 def test_car_under_uses_the_plate_centre():
@@ -36,10 +36,21 @@ def test_clean_ocr_text():
     assert clean_ocr_text("ab-12 C|") == "12C"
 
 
-def test_chars_match():
-    assert chars_match(["V", "W", "2"], ["2", "W", "V"]) is True
+def test_chars_match_compares_in_reading_order():
+    assert chars_match(list("VW2"), ["V", "W", "2"]) is True
+    assert chars_match(list("2149JHB"), list("JHB2149")) is False  # same characters, wrong order
     assert chars_match([], []) is False
-    assert chars_match(["V"], ["V", "back_car"]) is False
+
+
+def test_reading_order_sorts_boxes_left_to_right_and_skips_back_car():
+    names = {0: "J", 1: "H", 2: "B", 3: "back_car"}
+    boxes = [[300, 10, 380, 90, 0.9, 2], [0, 0, 800, 100, 0.6, 3], [20, 10, 100, 90, 0.8, 0], [160, 10, 240, 90, 0.95, 1]]
+    assert reading_order(boxes, names) == ["J", "H", "B"]
+
+
+def test_ocr_text_reads_words_left_to_right():
+    data = {"text": ["2149", "", "JHB", "|"], "left": [400, 0, 30, 700]}  # pytesseract image_to_data columns
+    assert ocr_text_left_to_right(data) == "JHB2149"
 
 
 def test_is_capture_frame():
