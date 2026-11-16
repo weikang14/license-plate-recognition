@@ -266,6 +266,7 @@ video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; bor
 
 /* ---------- model performance ---------- */
 .plots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.letter-figs { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; margin-top: 14px; }
 figure { margin: 0; }
 figcaption { margin-top: 6px; color: var(--ink-2); font-size: 14px; }
 .plots img, .gallery img { width: 100%; border: 1px solid var(--rule); border-radius: 4px; background: #FFF; }

@@ -31,3 +31,11 @@ test("letter panel shows the character model's validation scores", () => {
   assert.match(html, /0\.960/);
   assert.match(html, /0\.789/);
 });
+
+test("letter panel shows the training curves and a detection from the FYP report", () => {
+  const html = letterPanel({ precision: 0.949, recall: 0.904, map50: 0.96, map50_95: 0.789 });
+  assert.match(html, /src="img\/letter-training\.png"/);
+  assert.match(html, /src="img\/letter-detection\.png"/);
+  assert.match(html, /FYP report/);
+  assert.match(html, /about 500 epochs/);
+});

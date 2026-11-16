@@ -80,3 +80,9 @@ def test_metrics_final():
     assert m["final"] == "yolov8s_yaml(3)"
     final = next(r for r in m["runs"] if r["key"] == m["final"])
     assert final["best"]["map50"] == 0.974
+    assert m["letter"] == {"precision": 0.949, "recall": 0.904, "map50": 0.96, "map50_95": 0.789}
+
+
+def test_letter_figures_are_published():
+    for name in ("letter-training.png", "letter-detection.png"):
+        assert (WEB / "img" / name).stat().st_size > 10_000

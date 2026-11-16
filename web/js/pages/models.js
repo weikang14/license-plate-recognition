@@ -21,7 +21,11 @@ export function letterPanel(s) {
             <tbody><tr><td>${f3(s.precision)}</td><td>${f3(s.recall)}</td><td>${f3(s.map50)}</td><td>${f3(s.map50_95)}</td></tr></tbody>
           </table>
         </div>
-        <p class="muted">Validation scores stored in the model file. It detects 0–9 and A–Y without I, O and Z, plus a back_car class. Its training run is not in this repository.</p>
+        <p class="muted">Validation scores stored in the model file the pipeline uses, from a 100-epoch run saved at epoch 24. It detects 0–9 and A–Y without I, O and Z, plus a back_car class. The curves below come from a longer run of about 500 epochs, shown in the FYP report; its weights were not kept.</p>
+        <div class="plots letter-figs">
+          <figure><a href="img/letter-training.png" target="_blank" rel="noopener"><img src="img/letter-training.png" alt="Character model training curves over about 500 epochs: losses, precision, recall, mAP50 and mAP50-95" loading="lazy"></a><figcaption>Training curves, about 500 epochs (FYP report, figure 39)</figcaption></figure>
+          <figure><a href="img/letter-detection.png" target="_blank" rel="noopener"><img src="img/letter-detection.png" alt="Each character of plate JHB 2149 boxed and labelled by the character model" loading="lazy"></a><figcaption>Characters detected on a plate crop (FYP report, figure 40)</figcaption></figure>
+        </div>
       </section>`;
 }
 
