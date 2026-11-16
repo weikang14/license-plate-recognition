@@ -41,6 +41,13 @@ test("about explains the in-order cross-check", () => {
   assert.doesNotMatch(root.innerHTML, /compared without order|Known shortcut/);
 });
 
+test("about says who built what", () => {
+  const root = { innerHTML: "" };
+  render(root, { records, summary, metrics });
+  assert.match(root.innerHTML, /model training and the recognition pipeline: weikang14's final year project/);
+  assert.match(root.innerHTML, /built with Claude Code/);
+});
+
 test("about counts vehicles with at least one verified reading", () => {
   const root = { innerHTML: "" };
   const recs = [

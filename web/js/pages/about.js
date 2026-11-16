@@ -80,6 +80,11 @@ export function render(root, { records, summary, metrics }) {
             <li>Tesseract OCR 5 through pytesseract</li>
             <li>This dashboard: HTML, CSS, JavaScript and Chart.js 4.4.1, published with GitHub Pages</li>
           </ul>
+          <h2>Who built what</h2>
+          <ul class="stack-list">
+            <li>Dataset, model training and the recognition pipeline: weikang14's final year project</li>
+            <li>This dashboard, the tests and the changes made after the project: built with Claude Code, an AI coding assistant</li>
+          </ul>
           <p><a class="button" href="${REPO}" target="_blank" rel="noopener">View the source on GitHub</a></p>
         </section>
       </div>

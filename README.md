@@ -47,6 +47,11 @@ Time per stage on one 1080p frame, measured with `tools/benchmark.py` (also on t
 
 The site data was built on the CPU, at about 11 fps, below the cameras' 25-30 fps. On the GPU the detectors run at about 83 fps, and Tesseract, which has no GPU version and runs at most once every 1.5 seconds per capture, becomes the slowest step. CPU: PyTorch 2.3.1 with Ultralytics 8.1.27; GPU: PyTorch 2.7.0 with Ultralytics 8.3.127.
 
+## Who built what
+
+- **weikang14, final year project:** the dataset, training the plate and character detectors, and the recognition pipeline: vehicle, plate, two readers and the cross-check (`code/Final_License_Plate_Detection.ipynb`).
+- **Built with [Claude Code](https://claude.com/claude-code), an AI coding assistant, after the project:** this dashboard, moving the notebook's pipeline into `tools/` with tests and the speed benchmark, and the post-project changes described above (vehicle tracking, removing the fixed perspective correction, the ordered cross-check). Earlier commits in this repository show "Claude Code" as the author name for this reason.
+
 ## Repository layout
 
 ```
