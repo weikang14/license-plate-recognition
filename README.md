@@ -47,6 +47,12 @@ Time per stage on one 1080p frame, measured with `tools/benchmark.py` (also on t
 
 The site data was built on the CPU, at about 11 fps, below the cameras' 25-30 fps. On the GPU the detectors run at about 83 fps, and Tesseract, which has no GPU version and runs at most once every 1.5 seconds per capture, becomes the slowest step. CPU: PyTorch 2.3.1 with Ultralytics 8.1.27; GPU: PyTorch 2.7.0 with Ultralytics 8.3.127.
 
+## Next steps
+
+1. **One recognition model instead of two readers.** Replace Tesseract, the character model and the cross-check with a single model that reads the whole plate in one pass. Running two readers on every capture, and Tesseract a second time when they disagree, is the slowest part of reading a plate (see Speed above), and Tesseract cannot run on a GPU.
+2. **Two-row plates.** The left-to-right ordering only works for plates written on one line.
+3. **Keep vehicle ids through occlusion.** The tracker matches vehicles by position only, so a car that passes close in front of a parked one can take over the parked car's id.
+
 ## Who built what
 
 - **weikang14, final year project:** the dataset, training the plate and character detectors, and the recognition pipeline: vehicle, plate, two readers and the cross-check (`code/Final_License_Plate_Detection.ipynb`).

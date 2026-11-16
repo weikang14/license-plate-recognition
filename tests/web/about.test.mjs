@@ -65,3 +65,14 @@ test("about says the vehicle detector also keeps buses and trucks", () => {
   render(root, { records, summary, metrics });
   assert.match(root.innerHTML, /car, bus and truck are used/);
 });
+
+test("about lists three next steps, led by a single recognition model", () => {
+  const root = { innerHTML: "" };
+  render(root, { records, summary, metrics });
+  const steps = root.innerHTML.match(/<ol class="next-steps stack-list">([\s\S]*?)<\/ol>/);
+  assert.ok(steps, "next steps list is missing");
+  assert.equal(steps[1].match(/<li>/g).length, 3);
+  assert.match(steps[1], /single recognition model/);
+  assert.match(steps[1], /two-row plates/);
+  assert.doesNotMatch(root.innerHTML, /YOLOv9/);
+});
