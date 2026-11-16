@@ -19,6 +19,17 @@ def test_readme_failure_claims_match_records():
     assert "often reads the same plate correctly" not in text
 
 
+def test_readme_results_table_matches_the_data():
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    summary = json.loads((DATA / "summary.json").read_text(encoding="utf-8"))
+    records = json.loads((DATA / "records.json").read_text(encoding="utf-8"))
+    cars = lambda rs: len({(r["video"], r["car_id"]) for r in rs})
+    verified = [r for r in records if r["match"]]
+    assert f"| Vehicles tracked (counted per video) | {summary['vehicles']} |" in text
+    assert f"| {summary['captures']}, from {cars(records)} vehicles |" in text
+    assert f"| {summary['matched']} ({summary['match_rate'] * 100:.1f}%), from {cars(verified)} vehicles |" in text
+
+
 def test_readme_speed_table_matches_the_benchmark():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     speed = json.loads((ROOT / "web" / "speed.json").read_text(encoding="utf-8"))

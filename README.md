@@ -26,12 +26,12 @@ A final year project that reads Malaysian license plates from video, plus a dash
 |---|---|
 | Plate detector (YOLOv8s, trained from scratch) | mAP50 0.974, mAP50-95 0.651, precision 0.951, recall 0.957 |
 | Test videos processed | 15 |
-| Vehicles tracked (counted per video) | 223 |
-| Plate captures (plates on a tracked car) | 149, from 45 vehicles |
-| Verified by the OCR + YOLO cross-check | 60 (40.3%), from 33 vehicles |
+| Vehicles tracked (counted per video) | 184 |
+| Plate captures (plates on a tracked car) | 156, from 44 vehicles |
+| Verified by the OCR + YOLO cross-check | 64 (41.0%), from 34 vehicles |
 | Average detection confidence | 0.825 |
 
-The plate detector is reliable; reading the plate is the weak step. Tesseract returned no text on 33 of 149 captures, and the character model often misses a character, so the strict cross-check still rejects about three in five captures. The verified captures are two plates, JHB 2149 and VEW 6482, seen in 10 of the 15 videos. Close-up shots where the whole car is not in view are skipped on purpose: without a tracked car there is nothing to prove the plate is on a real vehicle. Removing the fixed perspective correction raised verified captures from 10 (6.7%) to 47 (31.5%) on the same footage; the project report had already noted that it left too little margin around plates filmed at close range. Comparing the readings in left-to-right order, with the character model at confidence 0.4 and a second Tesseract pass as a single line, then raised them to 60 (40.3%) and removed the one capture that had passed out of order (2149JHB). Every mismatch is listed on the site with both readings side by side.
+The plate detector is reliable; reading the plate is the weak step. Tesseract returned no text on 36 of 156 captures, and the character model often misses a character, so the strict cross-check still rejects about three in five captures. The verified captures are two plates, JHB 2149 and VEW 6482, seen in 10 of the 15 videos. Close-up shots where the whole car is not in view are skipped on purpose: without a tracked car there is nothing to prove the plate is on a real vehicle. Removing the fixed perspective correction raised verified captures from 10 (6.7%) to 47 (31.5%) on the same footage; the project report had already noted that it left too little margin around plates filmed at close range. Comparing the readings in left-to-right order, with the character model at confidence 0.4 and a second Tesseract pass as a single line, then raised them to 60 (40.3%) and removed the one capture that had passed out of order (2149JHB). Keeping each vehicle's id through gaps of up to 3 seconds then lowered the vehicle count from 223 to 184, because a car that stays in view is no longer counted twice; the published run has 156 captures, 64 of them verified (41.0%). Every mismatch is listed on the site with both readings side by side.
 
 ## Speed
 
