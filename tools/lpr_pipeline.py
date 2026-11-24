@@ -13,6 +13,8 @@ block reading (psm 6) disagrees, the plate is read again as one raw line (psm 13
 and trucks as vehicles (a car close to the camera is often labelled truck) and keeps a lost car's id for 3 s,
 so a car that stays in view is not counted again.
 """
+from __future__ import annotations  # `int | None` hints on Python 3.9
+
 import math
 import os
 from dataclasses import dataclass
@@ -30,6 +32,7 @@ LETTER_CONF = 0.4      # character model; 0.4 verified the most captures on the 
 VEHICLE_CLASSES = {2, 5, 7}  # COCO car, bus, truck; the notebook used car only
 TRACK_BUFFER_S = 3     # a lost car keeps its id this long (ByteTrack's default is 1 s)
 OCR_PSMS = (6, 13)     # notebook's psm 6 first; psm 13 (raw line) only when psm 6 disagrees with YOLO
+DETECT_BATCH = 8       # frames per detector call; one at a time leaves a GPU mostly idle (8 was ~2.5x faster on an RTX 4060)
 
 
 def clean_ocr_text(text: str) -> str:
@@ -136,14 +139,15 @@ def ocr_until_match(read, yolo_chars: list[str], psms: tuple[int, ...] = OCR_PSM
     return first
 
 
-def _boxes(model: YOLO, img: np.ndarray, conf: float = 0.5, **kw) -> list[list[float]]:
-    return model(img, conf=conf, verbose=False, **kw)[0].boxes.data.tolist()
+def _boxes(model: YOLO, imgs: np.ndarray | list[np.ndarray], conf: float = 0.5, **kw) -> list[list[list[float]]]:
+    """One image or a batch -> per image, rows of (x1, y1, x2, y2, score, cls)."""
+    return [r.boxes.data.tolist() for r in model(imgs, conf=conf, verbose=False, **kw)]
 
 
 def _read_plate(plate_bgr: np.ndarray, models: Models) -> tuple[str, list[str]]:
     """Notebook's double reading: Tesseract on the inverted plate, YOLO characters on the plate; both left to right."""
     letter = prepare_plate(plate_bgr)
-    chars = reading_order(_boxes(models.letter, cv2.cvtColor(letter, cv2.COLOR_GRAY2RGB), conf=LETTER_CONF),
+    chars = reading_order(_boxes(models.letter, cv2.cvtColor(letter, cv2.COLOR_GRAY2RGB), conf=LETTER_CONF)[0],
                           models.letter.names)
     inverted = cv2.bitwise_not(letter)
     read = lambda psm: ocr_text_left_to_right(pytesseract.image_to_data(
@@ -159,13 +163,37 @@ def _draw_overlay(frame: np.ndarray, o: dict) -> None:
         cv2.putText(frame, text, (20, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
 
-def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
-                  annotate_to: Path | None = None, max_frames: int | None = None) -> tuple[list[dict], dict]:
+def _detect_in_batches(cap, models: Models, plates_every_frame: bool, max_frames: int | None, batch: int):
+    """Yield (frame_no, frame, car rows, plate rows or None) per frame, running the detectors `batch` frames at a time."""
+    done = 0
+    while True:
+        chunk = []
+        while len(chunk) < batch and (max_frames is None or done + len(chunk) < max_frames):
+            ok, frame = cap.read()
+            if not ok:
+                break
+            chunk.append(frame)
+        if not chunk:
+            return
+        nos = range(done + 1, done + len(chunk) + 1)
+        cars = _boxes(models.car, chunk, agnostic_nms=True)  # one box per vehicle, not car + truck
+        want = [i for i, no in enumerate(nos) if plates_every_frame or is_capture_frame(no)]
+        plates = dict(zip(want, _boxes(models.plate, [chunk[i] for i in want]))) if want else {}
+        yield from ((no, f, c, plates.get(i)) for i, (no, f, c) in enumerate(zip(nos, chunk, cars)))
+        done += len(chunk)
+
+
+def process_video(video_path: Path, models: Models, crops_dir: Path | None, *, annotate_to: Path | None = None,
+                  max_frames: int | None = None, batch: int = DETECT_BATCH) -> tuple[list[dict], dict]:
     """Run the pipeline over a video.
 
     Cars are detected and tracked on every frame in both modes. Fast mode (annotate_to=None) runs
     the plate detector only on capture frames; annotate mode runs it on every frame and writes the
-    boxed video at the source fps. Both give the same records.
+    boxed video at the source fps. Both give the same records. Frames go to the detectors `batch`
+    at a time; the tracker and the plate reading still go frame by frame. On the CPU the batch size
+    does not change the records. On a GPU it changes float rounding, as moving from CPU to GPU does:
+    on the 15 test videos the plates and verified captures stayed the same, but one car's id shifted
+    by one (MOVI0023).
     """
     pytesseract.pytesseract.tesseract_cmd = os.environ.get("TESSERACT_CMD", "tesseract")
     video_path = Path(video_path)
@@ -185,15 +213,12 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
     car_ids: set[int] = set()
     overlay = {"count": 0, "plate": 0, "letter": None, "chars": 0, "score": 0.0}  # notebook's final_* values
     try:
-        while max_frames is None or frames < max_frames:
-            frame_no = frames + 1
-            capture = is_capture_frame(frame_no)
-            ok, frame = cap.read()
-            if not ok:
-                break
+        for frame_no, frame, car_rows, plate_rows in _detect_in_batches(cap, models, writer is not None,
+                                                                         max_frames, batch):
             frames = frame_no
+            capture = is_capture_frame(frame_no)
             clean = frame.copy() if writer is not None else frame  # crops come from the undrawn frame
-            cars = tracker.update(vehicle_boxes(_boxes(models.car, clean, agnostic_nms=True)))  # one box per vehicle, not car + truck
+            cars = tracker.update(vehicle_boxes(car_rows))
             car_ids.update(c[4] for c in cars)
             if writer is not None:
                 for x1, y1, x2, y2, car_id in cars:
@@ -205,7 +230,7 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *,
 
             plate_box = 0
             t_s = (frame_no - 1) / fps
-            for x1, y1, x2, y2, score, _ in _boxes(models.plate, clean):
+            for x1, y1, x2, y2, score, _ in plate_rows:
                 car_id = car_under((x1, y1, x2, y2), cars)
                 if car_id is None:
                     continue  # the plan: a plate only counts when it sits on a tracked car

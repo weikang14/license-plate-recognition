@@ -5,6 +5,8 @@
 Env: TESSERACT_CMD, FFMPEG (default: found on PATH). Inputs are checked first; the build goes to <out>.new
 and replaces <out> only when finished. An existing <out> is replaced only if an earlier run made it.
 """
+from __future__ import annotations  # `X | None` hints on Python 3.9
+
 import argparse
 import json
 import os

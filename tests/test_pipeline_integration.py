@@ -41,6 +41,12 @@ def test_fast_mode_records(fast):
     assert all(b - a >= 1.5 - 0.01 for a, b in zip(times, times[1:]))
 
 
+def test_batched_detection_matches_one_frame_at_a_time(models, fast):
+    records, info = process_video(VIDEO, models, None, max_frames=700, batch=1)
+    strip = lambda rs: [{k: v for k, v in r.items() if k != "crop"} for r in rs]
+    assert strip(records) == strip(fast[0]) and info == fast[1]
+
+
 def test_annotate_matches_fast(models, fast, tmp_path):
     out = tmp_path / "annotated.mp4"
     records, info = process_video(VIDEO, models, None, annotate_to=out, max_frames=700)
