@@ -1,7 +1,12 @@
+from types import SimpleNamespace
+
+import cv2
 import numpy as np
 
-from tools.lpr_pipeline import (CarTracker, TimeGate, car_under, chars_match, clean_ocr_text, is_capture_frame,
-                                ocr_text_left_to_right, ocr_until_match, prepare_plate, reading_order, vehicle_boxes)
+import tools.lpr_pipeline as lpr
+from tools.lpr_pipeline import (CarTracker, Models, car_under, chars_match, clean_ocr_text, is_capture_frame,
+                                ocr_text_left_to_right, ocr_until_match, prepare_plate, process_video, reading_order,
+                                vehicle_boxes)
 
 
 def test_car_under_uses_the_plate_centre():
@@ -62,6 +67,11 @@ def test_chars_match_compares_in_reading_order():
     assert chars_match(list("VW2"), ["V", "W", "2"]) is True
     assert chars_match(list("2149JHB"), list("JHB2149")) is False  # same characters, wrong order
     assert chars_match([], []) is False
+    assert chars_match(list("WA6605P"), list("WA6605P")) is True     # letters, digits, an optional letter
+    for auctioned in ("W1", "MALAYSIA8", "G1M1", "1M4U1234"):          # JPJ special series sold at auction
+        assert chars_match(list(auctioned), list(auctioned)) is True
+    assert chars_match(list("48860"), list("48860")) is False        # agreed, but no letters: not a plate
+    assert chars_match(["7"], ["7"]) is False                         # a badge, not a plate
 
 
 def test_reading_order_sorts_boxes_left_to_right_and_skips_back_car():
@@ -75,14 +85,10 @@ def test_ocr_text_reads_words_left_to_right():
     assert ocr_text_left_to_right(data) == "JHB2149"
 
 
-def test_is_capture_frame():
-    assert is_capture_frame(7) and is_capture_frame(14)
-    assert not is_capture_frame(1) and not is_capture_frame(8)
-
-
-def test_time_gate():
-    gate = TimeGate()
-    assert [gate.allow(t) for t in (0.0, 1.0, 1.49, 1.5, 2.0)] == [True, False, False, True, False]
+def test_capture_frames_are_7_a_second_spread_evenly():
+    assert [n for n in range(1, 31) if is_capture_frame(n, 30)] == [5, 9, 13, 18, 22, 26, 30]
+    assert sum(is_capture_frame(n, 25) for n in range(1, 251)) == 70  # 10 s at 25 fps
+    assert all(is_capture_frame(n, 5) for n in range(1, 11))       # under 7 fps: every frame
 
 
 def test_prepare_plate_is_gray_800_wide_and_keeps_aspect():
@@ -100,3 +106,70 @@ def test_ocr_until_match_stops_at_the_first_reading_that_agrees_with_yolo():
     assert ocr_until_match(reader({6: "JHB2149", 13: "X"}), list("JHB2149")) == "JHB2149" and calls == [6]
     assert ocr_until_match(reader({6: "JHB214", 13: "JHB2149"}), list("JHB2149")) == "JHB2149"
     assert ocr_until_match(reader({6: "JHB214", 13: ""}), list("JHB2149")) == "JHB214"  # no agreement: first reading kept
+
+
+class FakeDetector:
+    """Stands in for a YOLO model: finds nothing and records which frames (told apart by grey level) each call got."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, imgs, **kw):
+        self.calls.append([round(float(im.mean()) / 12) + 1 for im in imgs])
+        return [SimpleNamespace(boxes=SimpleNamespace(data=np.zeros((0, 6)))) for _ in imgs]
+
+
+class BoxDetector(FakeDetector):
+    """A YOLO stand-in that finds the same boxes (x1, y1, x2, y2, score, cls) on every frame."""
+
+    def __init__(self, rows):
+        super().__init__()
+        self.rows = np.asarray(rows, dtype=float)
+
+    def __call__(self, imgs, **kw):
+        return [SimpleNamespace(boxes=SimpleNamespace(data=self.rows)) for _ in imgs]
+
+
+def grey_video(tmp_path, frames):
+    """A 64x48 25 fps video; frame i + 1 has grey level i * 12."""
+    video = tmp_path / "grey.avi"
+    w = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"MJPG"), 25, (64, 48))
+    for i in range(frames):
+        w.write(np.full((48, 64, 3), i * 12 % 256, np.uint8))
+    w.release()
+    return video
+
+
+def test_a_car_is_read_once_on_every_capture_frame_until_the_same_plate_is_verified_twice(tmp_path, monkeypatch):
+    readings = iter([("JHB214", list("JHB2149")), ("JHB2149", list("JHB2149")), ("VEH6482", list("VEH6482")),
+                     ("", list("JHB2149")), ("JHB2149", list("JHB2149"))])
+    monkeypatch.setattr(lpr, "_read_plate", lambda region, models: next(readings))
+    car = BoxDetector([[0, 0, 64, 48, 0.9, 2]])
+    plates = BoxDetector([[20, 30, 44, 40, 0.9, 0], [20, 5, 44, 15, 0.8, 0]])  # two plate boxes on the one car
+    records, _ = process_video(grey_video(tmp_path, 40), Models(car, plates, FakeDetector()), None)
+    assert [(r["frame"], r["plate"], r["match"]) for r in records] == [  # 25 fps: 7 a second; a 6th read would fail
+        (4, "JHB214", False), (8, "JHB2149", True), (11, "VEH6482", True), (15, "", False), (18, "JHB2149", True)]
+
+
+def test_cars_in_the_same_frame_are_each_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(lpr, "_read_plate", lambda region, models: ("AB1", list("AB1")))
+    cars = BoxDetector([[0, 0, 30, 48, 0.9, 2], [34, 0, 64, 48, 0.9, 2]])
+    plates = BoxDetector([[5, 30, 25, 40, 0.9, 0], [39, 30, 59, 40, 0.9, 0]])
+    records, _ = process_video(grey_video(tmp_path, 20), Models(cars, plates, FakeDetector()), tmp_path / "crops")
+    assert [r["frame"] for r in records] == [4, 4, 8, 8] and len({r["car_id"] for r in records}) == 2
+    assert sorted(p.name for p in (tmp_path / "crops").iterdir()) == sorted(r["crop"] for r in records)
+
+
+def test_capture_frames_reach_the_plate_detector_in_the_same_batches_in_both_modes(tmp_path):
+    # On a GPU the batch changes float rounding, so annotate mode must detect capture frames exactly as fast mode does.
+    video = grey_video(tmp_path, 20)
+
+    def plate_calls(**kw):
+        plate = FakeDetector()
+        process_video(video, Models(FakeDetector(), plate, FakeDetector()), None, **kw)
+        return plate.calls
+
+    fast = plate_calls()
+    assert fast == [[4, 8], [11, 15], [18]]  # capture frames only (7 a second at 25 fps), one call per batch of 8 frames
+    annotated = plate_calls(annotate_to=tmp_path / "boxed.mp4")
+    assert all(c in annotated for c in fast), annotated

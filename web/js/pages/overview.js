@@ -1,5 +1,5 @@
-// Overview: headline numbers, per-video captures, confidence spread, latest verified plates.
-import { formatPct, formatTime } from "../format.js";
+// Overview: headline numbers, per-video captures, confidence spread, the confirmed plates.
+import { confirmedCaptures, formatPct, formatTime } from "../format.js";
 import { COLORS, esc, makeChart, plateChip } from "../ui.js";
 
 export function render(root, { records, summary }) {
@@ -12,7 +12,10 @@ export function render(root, { records, summary }) {
     ["Verification rate", formatPct(s.match_rate)],
     ["Final model mAP50", s.map50.toFixed(3)],
   ];
-  const recent = records.filter((r) => r.match).slice(-8).reverse();
+  // one row per confirmed plate, from its latest confirmation; a single verified capture can still be wrong
+  const confirmed = confirmedCaptures(records);
+  const recent = [...new Map(confirmed.map((r) => [r.plate, r])).values()].reverse();
+  const cars = (plate) => confirmed.filter((r) => r.plate === plate).length;
 
   root.innerHTML = `
     <div class="stack">
@@ -31,15 +34,15 @@ export function render(root, { records, summary }) {
         </section>
       </div>
       <section class="panel">
-        <h2>Latest verified plates</h2>
+        <h2>Confirmed plates <small>the same reading verified twice on one vehicle</small></h2>
         ${recent.length ? `<ul class="recent">${recent.map((r) => `
           <li><a href="#/records?id=${encodeURIComponent(r.id)}">
             <img src="${esc(r.crop)}" alt="Plate ${esc(r.plate)}" loading="lazy">
             ${plateChip(r.plate)}
-            <span class="muted">Vehicle #${r.car_id} in ${esc(r.video)} at ${formatTime(r.time_s)}</span>
+            <span class="muted">Vehicle #${r.car_id} in ${esc(r.video)} at ${formatTime(r.time_s)}${cars(r.plate) > 1 ? `, ${cars(r.plate)} vehicles in all` : ""}</span>
             <span class="muted">${r.score.toFixed(2)}</span>
           </a></li>`).join("")}</ul>`
-        : `<p class="state">No plate passed the OCR + YOLO cross-check yet. See <a href="#/records">all captures</a>.</p>`}
+        : `<p class="state">No vehicle had the same reading verified twice yet. See <a href="#/records">all captures</a>.</p>`}
       </section>
     </div>`;
 

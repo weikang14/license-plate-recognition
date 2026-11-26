@@ -6,7 +6,7 @@ const f3 = (x) => x.toFixed(3);
 
 const STAGES = [
   ["vehicle_ms", "Vehicle detection (YOLOv8n)", "every frame"],
-  ["plate_ms", "Plate detection (YOLOv8s)", "every 7th frame"],
+  ["plate_ms", "Plate detection (YOLOv8s)", "7 frames a second"],
   ["characters_ms", "Character detection (YOLOv8n)", "per capture"],
   ["tesseract_ms", "Tesseract OCR", "per capture, twice if psm 13 is needed"],
 ];
@@ -32,7 +32,7 @@ export function letterPanel(s) {
 export function speedPanel(speed) {
   const devs = Object.values(speed);
   const cell = (ms) => (ms == null ? "CPU only" : `${ms} ms`);
-  const fps = (d) => Math.round(1000 / (d.vehicle_ms + d.plate_ms / 7));
+  const fps = (d) => Math.round(1000 / (d.vehicle_ms + d.plate_ms * 7 / 30));  // plates on 7 of every 30 frames
   return `
       <section class="panel">
         <h2>Speed <small>one 1080p frame, measured with tools/benchmark.py</small></h2>
@@ -45,7 +45,7 @@ export function speedPanel(speed) {
             </tbody>
           </table>
         </div>
-        <p class="muted">Frames per second leaves out video decoding and the per-capture steps, which run at most once every 1.5 seconds. Tesseract has no GPU version. ${devs.map((d) => `${esc(d.hardware)}: PyTorch ${esc(d.torch)}, Ultralytics ${esc(d.ultralytics)}.`).join(" ")}</p>
+        <p class="muted">Frames per second leaves out video decoding and the plate reading, which runs 7 times a second for each car not yet verified. The estimate assumes 30 fps video. Tesseract has no GPU version. ${devs.map((d) => `${esc(d.hardware)}: PyTorch ${esc(d.torch)}, Ultralytics ${esc(d.ultralytics)}.`).join(" ")}</p>
       </section>`;
 }
 

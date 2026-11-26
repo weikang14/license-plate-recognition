@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 import pytest
 
-from tools.lpr_pipeline import Models, process_video
+from tools.lpr_pipeline import Models, is_capture_frame, process_video
 
 ROOT = Path(__file__).resolve().parent.parent
 VIDEO = ROOT / "videos" / "testing_video" / "test6.mp4"
@@ -35,10 +35,18 @@ def test_fast_mode_records(fast):
     assert len(records) >= 1
     for r in records:
         assert set(r) == FIELDS
-        assert r["score"] >= 0.75 and r["frame"] % 7 == 0 and isinstance(r["car_id"], int)
+        assert r["score"] >= 0.75 and is_capture_frame(r["frame"], info["fps"]) and isinstance(r["car_id"], int)
         assert (crops / r["crop"]).is_file()
-    times = [r["time_s"] for r in records]
-    assert all(b - a >= 1.5 - 0.01 for a, b in zip(times, times[1:]))
+
+
+def test_a_car_is_not_read_again_once_the_same_plate_is_verified_twice(fast):
+    passed, confirmed = set(), set()
+    for r in fast[0]:
+        assert r["car_id"] not in confirmed, f"car {r['car_id']} read again at frame {r['frame']}"
+        if r["match"]:
+            key = (r["car_id"], r["plate"])
+            (confirmed.add(r["car_id"]) if key in passed else passed.add(key))
+    assert confirmed  # these 700 frames hold confirmed cars, so the rule is exercised
 
 
 def test_batched_detection_matches_one_frame_at_a_time(models, fast):

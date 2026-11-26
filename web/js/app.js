@@ -9,7 +9,7 @@ import * as about from "./pages/about.js";
 export const pages = {
   overview: { title: "Overview", mod: overview },
   records: { title: "Recognition records", mod: records },
-  videos: { title: "Video playback", mod: videos },
+  videos: { title: "Highlight videos", mod: videos },
   models: { title: "Model performance", mod: models },
   about: { title: "About", mod: about },
 };

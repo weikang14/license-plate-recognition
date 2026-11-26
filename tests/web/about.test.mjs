@@ -15,7 +15,7 @@ test("about states the failure numbers the data actually shows", () => {
   const root = { innerHTML: "" };
   render(root, { records, summary, metrics });
   assert.match(root.innerHTML, /returned no text on 2 of 4 captures/);
-  assert.match(root.innerHTML, /All 2 verified captures are the same plate, JHB 2149/);
+  assert.match(root.innerHTML, /Every confirmed plate is JHB 2149\./);
   assert.doesNotMatch(root.innerHTML, /main reason/);
 });
 
@@ -27,11 +27,13 @@ test("about explains tracking and reports the vehicle count", () => {
   assert.match(root.innerHTML, /photo of a plate/);
 });
 
-test("about lists each verified plate once", () => {
+test("about lists each confirmed plate once, and not plates verified only once", () => {
   const root = { innerHTML: "" };
-  const recs = ["JHB2149", "VEW6482", "JHB2149"].map((plate) => ({ plate, match: true }));
-  render(root, { records: recs, summary: { ...summary, captures: 3, matched: 3 }, metrics });
-  assert.match(root.innerHTML, /The 3 verified captures are 2 plates, JHB 2149 and VEW 6482\./);
+  const recs = [["a", "JHB2149"], ["a", "JHB2149"], ["b", "VEW6482"], ["b", "VEW6482"], ["c", "JHB2149"], ["c", "JHB2149"], ["d", "VEH6482"]]
+    .map(([video, plate]) => ({ video, car_id: 1, plate, match: true }));
+  render(root, { records: recs, summary: { ...summary, captures: 7, matched: 7 }, metrics });
+  assert.match(root.innerHTML, /The confirmed plates are JHB 2149 and VEW 6482\./);
+  assert.doesNotMatch(root.innerHTML, /confirmed plates are[^.]*VEH/);
 });
 
 test("about explains the in-order cross-check", () => {
@@ -48,16 +50,18 @@ test("about says who built what", () => {
   assert.match(root.innerHTML, /built with Claude Code/);
 });
 
-test("about counts vehicles with at least one verified reading", () => {
+test("about counts vehicles whose plate was confirmed (the same reading verified twice)", () => {
   const root = { innerHTML: "" };
   const recs = [
     { video: "a", car_id: 1, plate: "JHB2149", match: true },
     { video: "a", car_id: 1, plate: "", match: false },
+    { video: "a", car_id: 1, plate: "JHB2149", match: true },
     { video: "a", car_id: 2, plate: "", match: false },
     { video: "b", car_id: 1, plate: "VEW6482", match: true },
+    { video: "b", car_id: 1, plate: "VEH6482", match: true },
   ];
-  render(root, { records: recs, summary: { ...summary, captures: 4, matched: 2 }, metrics });
-  assert.match(root.innerHTML, /2 of the 3 vehicles with a plate capture got at least one verified reading/);
+  render(root, { records: recs, summary: { ...summary, captures: 6, matched: 4 }, metrics });
+  assert.match(root.innerHTML, /1 of the 3 vehicles with a plate capture had their plate confirmed/);
 });
 
 test("about says the vehicle detector also keeps buses and trucks", () => {

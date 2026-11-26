@@ -15,10 +15,10 @@ test("speed panel lists each stage per device", () => {
   assert.match(html, /150 ms/);
 });
 
-test("speed panel turns stage times into frames per second (vehicles every frame, plates every 7th)", () => {
+test("speed panel turns stage times into frames per second (vehicles every frame, plates on 7 of 30 frames)", () => {
   const html = speedPanel(speed);
-  assert.match(html, /11 fps/);  // 70 + 140 / 7 = 90 ms
-  assert.match(html, /83 fps/);  // 10 + 14 / 7 = 12 ms
+  assert.match(html, /10 fps/);  // 70 + 140 * 7 / 30 = 102.7 ms
+  assert.match(html, /75 fps/);  // 10 + 14 * 7 / 30 = 13.3 ms
 });
 
 test("speed panel says where Tesseract was not timed", () => {

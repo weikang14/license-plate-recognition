@@ -1,5 +1,5 @@
 // Recognition records: every plate capture, searchable, with a detail view comparing OCR and YOLO.
-import { DASH, filterRecords, formatTime } from "../format.js";
+import { DASH, filterRecords, formatTime, reelCaptures } from "../format.js";
 import { esc, plateChip } from "../ui.js";
 
 const PAGE_SIZE = 25;
@@ -8,7 +8,7 @@ const resultTag = (r) =>
 const spaced = (chars) => (chars.length ? esc(chars.join(" ")) : DASH);
 
 export function render(root, { records, summary }, params) {
-  const playable = new Set(summary.per_video.filter((p) => p.playback).map((p) => p.video));
+  const inReel = new Set((summary.reels || []).flatMap((g) => reelCaptures(g, records).map((c) => c.r.id)));
   const state = { q: "", video: "all", result: "all", page: 0 };
 
   root.innerHTML = `
@@ -63,9 +63,9 @@ export function render(root, { records, summary }, params) {
   }
 
   function open(r) {
-    const link = playable.has(r.video)
-      ? `<a class="button" href="#/videos?v=${encodeURIComponent(r.video)}&t=${r.time_s}">Open in video playback</a>`
-      : `<p class="muted">No playback video was published for ${esc(r.video)}.</p>`;
+    const link = inReel.has(r.id)
+      ? `<a class="button" href="#/videos?id=${encodeURIComponent(r.id)}">Open in the highlight video</a>`
+      : `<p class="muted">${esc(r.video)} is not in the highlight videos: only videos with a verified plate are.</p>`;
     dialog.innerHTML = `
       <div class="detail-head">
         <h2 id="detail-title">${plateChip(r.plate)} ${resultTag(r)}</h2>
@@ -76,7 +76,7 @@ export function render(root, { records, summary }, params) {
         <div><dt>Tesseract OCR, left to right</dt><dd>${spaced([...(r.plate || "")])}</dd></div>
         <div><dt>YOLO characters, left to right</dt><dd>${spaced(r.yolo_chars)}</dd></div>
       </dl>
-      <p class="muted">A plate is verified only when both readings are identical.</p>
+      <p class="muted">A plate is verified only when both readings are identical and hold both letters and a number.</p>
       <dl class="facts">
         <div><dt>Video</dt><dd>${esc(r.video)}</dd></div>
         <div><dt>Vehicle</dt><dd>#${r.car_id}, tracked by ByteTrack</dd></div>

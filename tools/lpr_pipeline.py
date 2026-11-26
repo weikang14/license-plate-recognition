@@ -1,21 +1,23 @@
 """Recognition pipeline, ported from code/Final_License_Plate_Detection.ipynb.
 
 Same models, thresholds and plate processing as the notebook. Changes:
-the 1.5 s capture gap is measured in video time (not wall-clock), mismatched captures
-are recorded too, each record keeps its frame number and time in the video, and plates
+plates are read 7 times a second of video (the notebook's `fps = 7` read every 7th frame, about 4 a second),
+mismatched captures are recorded too, each record keeps its frame number and time in the video, and plates
 are cropped from the undrawn frame. After the FYP, cars are tracked with ByteTrack and a
 plate only counts when it sits on a tracked car (the original plan, so a plate photo held up
 to the camera is ignored; the final notebook ran the plate detector on the whole frame).
 The notebook's fixed-point perspective correction was also dropped after testing (see prepare_plate),
 and both readers now read left to right, so the cross-check compares the two readings in order
-(the notebook compared sorted characters) with the character model at conf 0.4. When Tesseract's
-block reading (psm 6) disagrees, the plate is read again as one raw line (psm 13). The tracker counts buses
+(the notebook compared sorted characters) with the character model at conf 0.4. The agreed reading must also hold
+letters and a number, as Malaysian plates do (auctioned ones such as W 1 and MALAYSIA 8 too), so a badge read as "7"
+is not verified. When Tesseract's block reading (psm 6) disagrees, the plate is read again as one raw line (psm 13). The tracker counts buses
 and trucks as vehicles (a car close to the camera is often labelled truck) and keeps a lost car's id for 3 s,
-so a car that stays in view is not counted again.
+so a car that stays in view is not counted again. Each tracked car is read on every capture frame until the same
+reading has passed the cross-check twice (once can be both readers dropping the same characters), then keeps that
+reading and is not read again (the notebook read one plate every 1.5 s, verified or not).
 """
 from __future__ import annotations  # `int | None` hints on Python 3.9
 
-import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,8 +28,7 @@ import pytesseract
 import supervision as sv
 from ultralytics import YOLO
 
-CAPTURE_STRIDE = 7     # notebook: fps = 7 -> try a capture every 7th frame
-CAPTURE_GAP_S = 1.5    # notebook: timedelta(seconds=1.5)
+CAPTURES_PER_S = 7     # plate reads per second of video, spread evenly over the frames
 LETTER_CONF = 0.4      # character model; 0.4 verified the most captures on the test videos (0.5 in the notebook)
 VEHICLE_CLASSES = {2, 5, 7}  # COCO car, bus, truck; the notebook used car only
 TRACK_BUFFER_S = 3     # a lost car keeps its id this long (ByteTrack's default is 1 s)
@@ -41,8 +42,12 @@ def clean_ocr_text(text: str) -> str:
 
 
 def chars_match(ocr_chars: list[str], yolo_chars: list[str]) -> bool:
-    """A plate counts only when OCR and YOLO read the same characters in the same order."""
-    return list(ocr_chars) == list(yolo_chars) and len(yolo_chars) > 0
+    """A plate counts only when OCR and YOLO read the same characters in the same order, letters and a number among them.
+
+    Malaysian plates, the auctioned series too (W 1, MALAYSIA 8, G1M 1), have both; a badge read as "7" does not.
+    """
+    return (list(ocr_chars) == list(yolo_chars) and any(c.isalpha() for c in yolo_chars)
+            and any(c.isdigit() for c in yolo_chars))
 
 
 def reading_order(boxes: list[list[float]], names: dict) -> list[str]:
@@ -87,23 +92,9 @@ class CarTracker:
         return [(*map(float, xyxy), int(tid)) for xyxy, tid in zip(tracked.xyxy, tracked.tracker_id)]
 
 
-def is_capture_frame(frame_no: int, stride: int = CAPTURE_STRIDE) -> bool:
-    """frame_no is 1-based, as in the notebook."""
-    return frame_no % stride == 0
-
-
-class TimeGate:
-    """At most one capture per min_gap_s of video time; only a pass moves the clock."""
-
-    def __init__(self, min_gap_s: float = CAPTURE_GAP_S):
-        self.min_gap_s = min_gap_s
-        self.last = -math.inf
-
-    def allow(self, t_s: float) -> bool:
-        if t_s - self.last < self.min_gap_s:
-            return False
-        self.last = t_s
-        return True
+def is_capture_frame(frame_no: int, fps: float, per_s: float = CAPTURES_PER_S) -> bool:
+    """frame_no is 1-based, as in the notebook. True on per_s evenly spread frames a second (every frame below per_s fps)."""
+    return int(frame_no * per_s / fps) > int((frame_no - 1) * per_s / fps)
 
 
 def prepare_plate(plate_bgr: np.ndarray) -> np.ndarray:
@@ -163,7 +154,7 @@ def _draw_overlay(frame: np.ndarray, o: dict) -> None:
         cv2.putText(frame, text, (20, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
 
-def _detect_in_batches(cap, models: Models, plates_every_frame: bool, max_frames: int | None, batch: int):
+def _detect_in_batches(cap, models: Models, fps: float, plates_every_frame: bool, max_frames: int | None, batch: int):
     """Yield (frame_no, frame, car rows, plate rows or None) per frame, running the detectors `batch` frames at a time."""
     done = 0
     while True:
@@ -177,8 +168,13 @@ def _detect_in_batches(cap, models: Models, plates_every_frame: bool, max_frames
             return
         nos = range(done + 1, done + len(chunk) + 1)
         cars = _boxes(models.car, chunk, agnostic_nms=True)  # one box per vehicle, not car + truck
-        want = [i for i, no in enumerate(nos) if plates_every_frame or is_capture_frame(no)]
-        plates = dict(zip(want, _boxes(models.plate, [chunk[i] for i in want]))) if want else {}
+        # Capture frames get their own call in both modes: on a GPU the batch changes float rounding, and
+        # annotate mode must read the same plates as fast mode. Other frames only have their plates drawn.
+        plates = {}
+        for want in ([i for i, no in enumerate(nos) if is_capture_frame(no, fps)],
+                     [i for i, no in enumerate(nos) if plates_every_frame and not is_capture_frame(no, fps)]):
+            if want:
+                plates.update(zip(want, _boxes(models.plate, [chunk[i] for i in want])))
         yield from ((no, f, c, plates.get(i)) for i, (no, f, c) in enumerate(zip(nos, chunk, cars)))
         done += len(chunk)
 
@@ -209,26 +205,29 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *, a
     if crops_dir is not None:
         Path(crops_dir).mkdir(parents=True, exist_ok=True)
 
-    gate, tracker, records, frames = TimeGate(), CarTracker(fps), [], 0
+    tracker, records, frames = CarTracker(fps), [], 0
     car_ids: set[int] = set()
+    confirmed: dict[int, str] = {}  # car id -> its plate, once the same reading passed twice; not read again
+    passed: set[tuple[int, str]] = set()  # (car id, reading) that passed the cross-check once
     overlay = {"count": 0, "plate": 0, "letter": None, "chars": 0, "score": 0.0}  # notebook's final_* values
     try:
-        for frame_no, frame, car_rows, plate_rows in _detect_in_batches(cap, models, writer is not None,
+        for frame_no, frame, car_rows, plate_rows in _detect_in_batches(cap, models, fps, writer is not None,
                                                                          max_frames, batch):
             frames = frame_no
-            capture = is_capture_frame(frame_no)
+            capture = is_capture_frame(frame_no, fps)
             clean = frame.copy() if writer is not None else frame  # crops come from the undrawn frame
             cars = tracker.update(vehicle_boxes(car_rows))
             car_ids.update(c[4] for c in cars)
             if writer is not None:
                 for x1, y1, x2, y2, car_id in cars:
                     cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                    cv2.putText(frame, f"#{car_id}", (int(x1), max(int(y1) - 8, 20)), cv2.FONT_HERSHEY_SIMPLEX,
+                    cv2.putText(frame, f"#{car_id} {confirmed.get(car_id, '')}".rstrip(), (int(x1), max(int(y1) - 8, 20)),
+                                cv2.FONT_HERSHEY_SIMPLEX,
                                 0.9, (0, 255, 0), 2, cv2.LINE_AA)
             if writer is None and not capture:
                 continue  # fast mode: plates are only read on capture frames
 
-            plate_box = 0
+            plate_box, read_now = 0, set()
             t_s = (frame_no - 1) / fps
             for x1, y1, x2, y2, score, _ in plate_rows:
                 car_id = car_under((x1, y1, x2, y2), cars)
@@ -236,23 +235,29 @@ def process_video(video_path: Path, models: Models, crops_dir: Path | None, *, a
                     continue  # the plan: a plate only counts when it sits on a tracked car
                 if writer is not None:
                     cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
-                if not capture or not gate.allow(t_s) or score < 0.75:
-                    continue
+                if car_id in confirmed:
+                    continue  # same tracked car: keep its confirmed plate, don't read it again
+                if not capture or car_id in read_now or score < 0.75:
+                    continue  # ponytail: one plate per car per frame, the detector's most confident one
                 region = clean[int(y1):int(y2), int(x1):int(x2)]
                 if region.size == 0:
                     continue
+                read_now.add(car_id)
                 text, chars = _read_plate(region, models)
                 match = chars_match(list(text), chars)
-                rid = f"{stem}-{frame_no:06d}"
+                rid = f"{stem}-{frame_no:06d}-{car_id}"
                 records.append({"id": rid, "video": stem, "frame": frame_no, "time_s": round(t_s, 2),
                                 "car_id": car_id, "plate": text, "yolo_chars": chars, "n_chars": len(chars),
                                 "score": round(score, 3), "match": match, "crop": f"{rid}.jpg"})
                 if crops_dir is not None:
                     cv2.imwrite(str(Path(crops_dir) / f"{rid}.jpg"), region, [cv2.IMWRITE_JPEG_QUALITY, 100])
-                if match:
+                if match and (car_id, text) in passed:
+                    confirmed[car_id] = text
                     plate_box += 1
                     overlay = {"count": overlay["count"] + 1, "plate": plate_box, "letter": text,
                                "chars": len(chars), "score": score}
+                elif match:
+                    passed.add((car_id, text))
 
             if writer is not None:
                 _draw_overlay(frame, overlay)

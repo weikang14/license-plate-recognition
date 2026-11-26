@@ -37,13 +37,13 @@ MB = 1024 * 1024
 def transcode_h264(src: Path, dst: Path, max_mb: float = 25) -> None:
     """Browser-playable H.264; step quality down until the file fits max_mb."""
     ffmpeg = os.environ.get("FFMPEG", "ffmpeg")
-    for height, crf in ((720, 28), (720, 32), (720, 36), (540, 36)):
+    for height, crf in ((720, 28), (720, 32), (720, 36), (540, 36), (360, 36)):  # 360p: 5-min dashcam clips
         subprocess.run([ffmpeg, "-y", "-v", "error", "-i", str(src), "-vf", f"scale=-2:{height}",
                         "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf), "-pix_fmt", "yuv420p",
                         "-movflags", "+faststart", "-an", str(dst)], check=True)
         if dst.stat().st_size <= max_mb * MB:
             return
-    raise RuntimeError(f"{dst.name} is still over {max_mb} MB at 540p crf 36")
+    raise RuntimeError(f"{dst.name} is still over {max_mb} MB at 360p crf 36")
 
 
 def preflight(out: Path, ffmpeg: str, runs=RUNS) -> None:

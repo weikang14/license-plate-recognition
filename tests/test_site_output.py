@@ -9,7 +9,6 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
 DATA = WEB / "data"
-SOURCE_VIDEOS = ROOT / "videos" / "testing_video"
 FIELDS = {"id", "video", "frame", "time_s", "car_id", "plate", "yolo_chars", "n_chars", "score", "match", "crop"}
 MB = 1024 * 1024
 
@@ -20,9 +19,9 @@ def load(name):
     return json.loads((DATA / name).read_text(encoding="utf-8"))
 
 
-def probe(path):
+def probe(path, entries="codec_name,pix_fmt,avg_frame_rate,duration"):
     out = subprocess.run([os.environ.get("FFPROBE", "ffprobe"), "-v", "error", "-select_streams", "v:0",
-                          "-show_entries", "stream=codec_name,pix_fmt,avg_frame_rate,duration", "-of", "json", str(path)],
+                          "-show_entries", f"stream={entries}", "-of", "json", str(path)],
                          capture_output=True, text=True, check=True).stdout
     return json.loads(out)["streams"][0]
 
@@ -44,29 +43,34 @@ def test_summary_consistent():
     records, s = load("records.json"), load("summary.json")
     assert s["captures"] == len(records)
     assert s["matched"] == sum(r["match"] for r in records)
-    assert len(s["per_video"]) == 15
+    sources = [p["source"] for p in s["per_video"]]
+    assert (sources.count("Test videos"), sources.count("Dashcam")) == (15, 14) and s["videos"] == 29
     assert s["vehicles"] == sum(p["vehicles"] for p in s["per_video"])
     assert all(isinstance(r["car_id"], int) for r in records)
-    for p in s["per_video"]:
-        if p["playback"]:
-            assert (WEB / p["playback"]).is_file()
+
+
+def test_each_source_has_a_reel_of_its_videos_with_a_verified_plate():
+    records, s = load("records.json"), load("summary.json")
+    assert [g["label"] for g in s["reels"]] == ["Test videos", "Dashcam"]
+    for g in s["reels"]:
+        mine = {p["video"] for p in s["per_video"] if p["source"] == g["label"]}
+        assert {x["video"] for x in g["segments"]} == {p["video"] for p in s["per_video"] if p["video"] in mine and p["matched"]}
+        in_reel = [r for r in records if any(x["video"] == r["video"] and x["from"] <= r["frame"] - 1 <= x["to"]
+                                             for x in g["segments"])]
+        assert len(in_reel) == sum(p["captures"] for p in s["per_video"] if p["video"] in mine and p["matched"])
+        # The timeline maps a capture to frame `at + offset` of the reel, so the reel must hold exactly these frames.
+        frames = sum(x["to"] - x["from"] + 1 for x in g["segments"])
+        assert int(probe(WEB / g["src"], "nb_frames")["nb_frames"]) == frames, g["label"]
 
 
 def test_videos_are_browser_playable():
     videos = sorted((DATA / "videos").glob("*.mp4"))
-    assert videos
+    assert [v.name for v in videos] == ["reel-1.mp4", "reel-2.mp4"]
     for v in videos:
         info = probe(v)
         assert (info["codec_name"], info["pix_fmt"]) == ("h264", "yuv420p"), v.name
-        assert v.stat().st_size <= 25 * MB, v.name
-        # Some sources are variable frame rate (nominal 25/1, real ~24.5); records use the real average,
-        # so the web video must keep the source's average rate and duration for seeking to line up.
-        # The source videos are local-only, so this part only runs where they exist.
-        if not (SOURCE_VIDEOS / v.name).is_file():
-            continue
-        src = probe(SOURCE_VIDEOS / v.name)
-        assert rate(info["avg_frame_rate"]) == pytest.approx(rate(src["avg_frame_rate"]), abs=0.01), v.name
-        assert float(info["duration"]) == pytest.approx(float(src["duration"]), abs=0.05), v.name
+        assert rate(info["avg_frame_rate"]) == 25, v.name
+        assert v.stat().st_size <= 45 * MB, v.name
 
 
 def test_site_budget():

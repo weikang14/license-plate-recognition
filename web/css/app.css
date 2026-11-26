@@ -244,7 +244,7 @@ dd { margin: 0; font-weight: 500; letter-spacing: 0.03em; overflow-wrap: anywher
 .video-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .video-tabs button[aria-selected="true"] { background: var(--sign); border-color: var(--sign); color: #FFF; }
 video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 6px; }
-.timeline { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; }
+.timeline { position: relative; list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; }
 .timeline button {
   display: flex;
   align-items: center;
@@ -302,4 +302,6 @@ figcaption { margin-top: 6px; color: var(--ink-2); font-size: 14px; }
   background: #FBF6EE;
   border-radius: 0 6px 6px 0;
 }
-.timeline .car { width: 2.6em; color: var(--sign-2); font-weight: 600; }
+.timeline .car { flex: none; width: 3.2em; color: var(--sign-2); font-weight: 600; }
+.timeline .tl-video { position: sticky; top: 0; z-index: 1; padding: 10px 6px 4px; background: var(--panel); border-bottom: 1px solid var(--rule); color: var(--ink-2); font-size: 13px; font-weight: 600; letter-spacing: 0.03em; }
+.timeline .tl-video + li button { border-top: 0; }
