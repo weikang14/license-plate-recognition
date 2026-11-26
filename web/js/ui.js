@@ -5,10 +5,10 @@ const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ENTITIES[c]);
 
 /** Malaysian-style plate: white characters on black. */
-export function plateChip(plate) {
+export function plateChip(plate, reader = "OCR") {
   return plate
     ? `<span class="plate">${esc(formatPlate(plate))}</span>`
-    : `<span class="plate plate-empty" title="OCR read no characters">${DASH}</span>`;
+    : `<span class="plate plate-empty" title="${reader} read no characters">${DASH}</span>`;
 }
 
 // Mirrors the CSS tokens in css/app.css.

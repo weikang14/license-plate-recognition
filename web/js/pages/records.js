@@ -23,7 +23,7 @@ export function render(root, { records, summary }, params) {
       <p class="muted" aria-live="polite" id="rec-count"></p>
       <div class="table-wrap">
         <table class="records">
-          <thead><tr><th>Snapshot</th><th>Plate (OCR)</th><th>Video</th><th>Vehicle</th><th>Time</th><th>Confidence</th><th>Characters</th><th>Result</th></tr></thead>
+          <thead><tr><th>Snapshot</th><th>Plate (OCR)</th><th>Plate (YOLO)</th><th>Video</th><th>Vehicle</th><th>Time</th><th>Confidence</th><th>Result</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -50,11 +50,11 @@ export function render(root, { records, summary }, params) {
       <tr tabindex="0" data-id="${esc(r.id)}" aria-label="Open capture ${esc(r.plate || "with no OCR text")}">
         <td><img src="${esc(r.crop)}" alt="" loading="lazy"></td>
         <td>${plateChip(r.plate)}</td>
+        <td>${plateChip(r.yolo_chars.join(""), "YOLO")}</td>
         <td>${esc(r.video)}</td>
         <td>#${r.car_id}</td>
         <td>${formatTime(r.time_s)}</td>
         <td>${r.score.toFixed(2)}</td>
-        <td>${r.n_chars}</td>
         <td>${resultTag(r)}</td>
       </tr>`).join("");
     pager.querySelector("span").textContent = `Page ${state.page + 1} of ${pages}`;

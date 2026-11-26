@@ -10,4 +10,6 @@ test("esc neutralises HTML", () => {
 test("plateChip renders a plate, or a dash when nothing was read", () => {
   assert.equal(plateChip("VW2468"), '<span class="plate">VW 2468</span>');
   assert.match(plateChip(""), /class="plate plate-empty"[^>]*>—</);
+  assert.match(plateChip(""), /title="OCR read no characters"/);
+  assert.match(plateChip("", "YOLO"), /title="YOLO read no characters"/);
 });
