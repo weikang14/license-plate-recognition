@@ -31,6 +31,7 @@ RUNS = [
     ("yolov8s_yaml(2)", "YOLOv8s (earlier run)", TR / "Results_yolov8s" / "yolov8s_yaml(2)"),
 ]
 FINAL = "yolov8s_yaml(3)"
+PUBLISHED = ROOT / "web" / "data"  # metrics.json + plots/ from those runs, in the repo: same model files
 MB = 1024 * 1024
 
 
@@ -46,18 +47,30 @@ def transcode_h264(src: Path, dst: Path, max_mb: float = 25) -> None:
     raise RuntimeError(f"{dst.name} is still over {max_mb} MB at 360p crf 36")
 
 
-def preflight(out: Path, ffmpeg: str, runs=RUNS) -> None:
+def have_runs(runs) -> bool:
+    return all((Path(d) / "results.csv").is_file() for _, _, d in runs)
+
+
+def preflight(out: Path, ffmpeg: str, runs=RUNS, published: Path = PUBLISHED) -> None:
     """Fail in seconds, not hours: check inputs and refuse to replace a folder this script didn't make."""
     if shutil.which(ffmpeg) is None:
         sys.exit(f"ffmpeg not found: {ffmpeg} (set FFMPEG or add it to PATH)")
-    missing = [str(d) for _, _, d in runs if not (Path(d) / "results.csv").is_file()]
-    if missing:
-        sys.exit("training runs not found (training_results/ is local-only):\n  " + "\n  ".join(missing))
+    if not have_runs(runs) and not (published / "metrics.json").is_file():
+        sys.exit(f"neither training_results/ (local-only) nor {published / 'metrics.json'} found")
     if out.exists() and any(out.iterdir()) and not (out / "summary.json").is_file():
         sys.exit(f"refusing to replace {out}: it is not empty and was not made by this script")
     staging = out.with_name(out.name + ".new")
     if staging.exists():
         sys.exit(f"leftover {staging} from an interrupted run; delete it and retry")
+
+
+def training_metrics(plots_out: Path, runs=RUNS, published: Path = PUBLISHED) -> dict:
+    """The Models page data from the training runs; without them (a fresh clone), the copy published in the repo."""
+    if have_runs(runs):
+        return build_metrics(runs, FINAL, plots_out)
+    print(f"training_results/ not found: reusing {published / 'metrics.json'} and its plots", flush=True)
+    shutil.copytree(published / "plots", plots_out, dirs_exist_ok=True)
+    return json.loads((published / "metrics.json").read_text(encoding="utf-8"))
 
 
 def publish(staging: Path, out: Path) -> None:
@@ -100,7 +113,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"[{i}/{len(videos)}] {v.stem}: {len(rs)} captures, {sum(r['match'] for r in rs)} matched, "
               f"{time.time() - t0:.0f} s", flush=True)
 
-    metrics = build_metrics(RUNS, FINAL, out / "plots")
+    metrics = training_metrics(out / "plots")
     metrics["letter"] = letter_model_scores(ROOT / "models" / "plate_letter.pt")
     map50 = next(r for r in metrics["runs"] if r["key"] == FINAL)["best"]["map50"]
     chosen = select_playback(summarize(records, infos, map50, set())["per_video"], args.playback)

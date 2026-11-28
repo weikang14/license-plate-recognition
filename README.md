@@ -12,6 +12,8 @@ A final year project that reads Malaysian license plates from video, plus a dash
 
 ![Model performance](docs/screenshots/models.png)
 
+Download the highlight videos (MP4, 1280x720): [test videos](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-1.mp4) (28 MB) and [dashcam clips](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-2.mp4) (31 MB). To run the project yourself, download [license-plate-recognition.zip](https://github.com/weikang14/license-plate-recognition/releases/latest/download/license-plate-recognition.zip) (480 MB: code, models and five test videos) and see [Download and run](#download-and-run).
+
 ## How it works
 
 1. **Find and track vehicles**: YOLOv8n (COCO) finds vehicles in every frame (cars, plus buses and trucks, because a car close to the camera is often labelled truck), and ByteTrack ([supervision](https://github.com/roboflow/supervision)) gives each one an id that follows it from frame to frame and survives gaps of up to 3 seconds, so a car that stays in view is not counted twice.
@@ -76,9 +78,24 @@ tools/merge_site_data.py                   combines those folders into web/data/
 tools/site_data.py                         metrics and summary for the dashboard
 tools/benchmark.py                         times each stage on CPU or GPU, writes web/speed.json
 tools/serve.py                             local static server (supports video seeking)
+tools/setup_env.py                         sets up .venv, the OXR weights and local.env (see Download and run)
 web/                                       the dashboard (plain HTML, CSS, JS and Chart.js)
 tests/                                     pytest and node tests
 ```
+
+## Download and run
+
+[license-plate-recognition.zip](https://github.com/weikang14/license-plate-recognition/releases/latest/download/license-plate-recognition.zip) in the [latest release](https://github.com/weikang14/license-plate-recognition/releases/latest) is this repository plus the five test videos with no people in view (test2, test3, test4, MOVI0022, MOVI0024) in `videos/testing_video/`. The other ten show drivers' faces or passers-by and are not published. Running the pipeline needs an NVIDIA GPU (OXR runs on CUDA) and Python 3.12. In the unzipped folder, on Windows:
+
+```
+python tools/setup_env.py
+.venv\Scripts\python -m pytest tests
+.venv\Scripts\python tools/build_site_data.py --videos videos/testing_video --out videos/built/test --playback 3
+.venv\Scripts\python tools/merge_site_data.py --out web/data "Test videos=videos/built/test"
+.venv\Scripts\python tools/serve.py
+```
+
+`setup_env.py` makes `.venv` (PyTorch with CUDA, and `requirements.txt`), downloads the OXR-1.0 weights (3.1 GB) into `oxr_model/` and writes `local.env`, which tells the tools where OXR, Tesseract and ffmpeg are. If Tesseract or ffmpeg is missing, it prints the command that installs it (or set `TESSERACT_CMD`, `FFMPEG` and `FFPROBE` to their paths); `--cuda cu126` picks an older CUDA build for older drivers. On Linux, use `.venv/bin/python`. Run the tests before the build: some of them check the published data against this README, and the build replaces that data in your copy with the results for these five videos (about 5 minutes on an RTX 4060 laptop GPU; unzip again to get the published data back). `--videos` can point at any folder of .mp4 files.
 
 ## Run the dashboard locally
 
@@ -90,7 +107,9 @@ Then open http://127.0.0.1:8765. (`python -m http.server` also works, but it can
 
 ## Regenerate the site data
 
-Needs Python 3.12 with the packages in `requirements.txt` (`pip install -r requirements.txt`, after the CUDA build of PyTorch from pytorch.org), a CUDA GPU for OXR, plus [Tesseract OCR](https://github.com/UB-Mannheim/tesseract) and [ffmpeg](https://ffmpeg.org/). Point `TESSERACT_CMD` and `FFMPEG` at them if they are not on `PATH`. Download the OXR-1.0 weights from [Hugging Face](https://huggingface.co/SoMarkAI/OXR-1.0) and set `OXR_MODEL` to that folder; the build stops if it is not set, and the benchmark times OXR on the GPU when it is. The raw videos (`videos/`: test videos and dashcam clips) and the training runs (`training_results/`) are kept locally and are not in this repository; tests that need them are skipped when they are missing.
+Needs Python 3.12 with the packages in `requirements.txt` (`pip install -r requirements.txt`, after the CUDA build of PyTorch from pytorch.org), a CUDA GPU for OXR, plus [Tesseract OCR](https://github.com/UB-Mannheim/tesseract) and [ffmpeg](https://ffmpeg.org/). Point `TESSERACT_CMD`, `FFMPEG` and `FFPROBE` (it comes with ffmpeg) at them if they are not on `PATH`. Download the OXR-1.0 weights from [Hugging Face](https://huggingface.co/SoMarkAI/OXR-1.0) and set `OXR_MODEL` to that folder; the build stops if it is not set, and the benchmark times OXR on the GPU when it is. The raw videos (`videos/`: test videos and dashcam clips) and the training runs (`training_results/`) are kept locally and are not in this repository; tests that need them are skipped when they are missing. Without `training_results/`, the build reuses the training scores and plots already in `web/data`, which belong to the same model files in `models/`.
+
+The site's data was built with:
 
 ```
 python tools/build_site_data.py --videos videos/testing_video --out videos/built/testing_video --playback 15

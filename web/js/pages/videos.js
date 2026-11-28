@@ -16,6 +16,7 @@ export function render(root, { records, summary }, params) {
           ${reels.map((g, i) => `<button type="button" role="tab" data-reel="${i}">${esc(g.label)}</button>`).join("")}
         </div>
         <video controls preload="metadata" playsinline></video>
+        <p><a class="reel-download" download>Download this video (MP4)</a></p>
         <p class="muted">Each video with a verified plate is cut to the stretches where plates are being read, <span class="cut-rule"></span>. The video's name is in the bottom-left corner. Green boxes are tracked cars with their ids, followed by the plate once it is confirmed (the same reading verified twice); a confirmed car is not read again. Red boxes are plates on those cars. The counters in the corner are drawn by the pipeline itself; Count is the number of confirmed cars in that video.</p>
       </section>
       <section class="panel">
@@ -43,7 +44,7 @@ export function render(root, { records, summary }, params) {
           ${c.r.match ? '<span class="tag tag-ok">Verified</span>' : '<span class="tag tag-warn">Mismatch</span>'}
         </button></li>`).join("")
       : '<li class="muted">No captures in this video.</li>';
-    video.src = reels[i].src;
+    video.src = root.querySelector(".reel-download").href = reels[i].src;
     const k = mine.findIndex((c) => c.r.id === id);
     if (k < 0) return;
     video.addEventListener("loadedmetadata", () => { video.currentTime = mine[k].t; }, { once: true });

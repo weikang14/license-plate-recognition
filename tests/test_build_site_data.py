@@ -39,9 +39,23 @@ def test_preflight_needs_ffmpeg(tmp_path, runs):
         b.preflight(tmp_path / "out", "no-such-ffmpeg-binary", runs)
 
 
-def test_preflight_needs_training_runs(tmp_path):
+def test_preflight_needs_training_runs_or_the_published_metrics(tmp_path):
+    missing, pub = [("k", "label", tmp_path / "missing")], tmp_path / "pub"
+    pub.mkdir()
     with pytest.raises(SystemExit):
-        b.preflight(tmp_path / "out", EXE, [("k", "label", tmp_path / "missing")])
+        b.preflight(tmp_path / "out", EXE, missing, pub)
+    (pub / "metrics.json").write_text("{}")
+    b.preflight(tmp_path / "out", EXE, missing, pub)  # a fresh clone has no training_results/
+
+
+def test_training_metrics_falls_back_to_the_published_copy(tmp_path):
+    pub = tmp_path / "pub"
+    (pub / "plots").mkdir(parents=True)
+    (pub / "plots" / "F1_curve.png").write_bytes(b"png")
+    (pub / "metrics.json").write_text('{"final": "k"}')
+    plots = tmp_path / "out" / "plots"
+    assert b.training_metrics(plots, [("k", "label", tmp_path / "missing")], pub) == {"final": "k"}
+    assert (plots / "F1_curve.png").read_bytes() == b"png"
 
 
 def test_preflight_refuses_leftover_staging(tmp_path, runs):

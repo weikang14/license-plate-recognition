@@ -1,4 +1,4 @@
-"""Runs the real models + Tesseract on the first 700 frames of test6 (a 0.87 plate appears near frame 240)."""
+"""Runs the real models + Tesseract on the first 700 frames of test3 (in the release zip; JHB 2149 is confirmed at 0 s, 9 s and 21 s)."""
 import os
 from pathlib import Path
 
@@ -8,7 +8,7 @@ import pytest
 from tools.lpr_pipeline import Models, is_capture_frame, process_video
 
 ROOT = Path(__file__).resolve().parent.parent
-VIDEO = ROOT / "videos" / "testing_video" / "test6.mp4"
+VIDEO = ROOT / "videos" / "testing_video" / "test3.mp4"
 FIELDS = {"id", "video", "frame", "time_s", "car_id", "plate", "yolo_chars", "n_chars", "score", "match", "crop", "oxr", "agreed"}
 
 pytestmark = [
@@ -31,7 +31,7 @@ def fast(models, tmp_path_factory):
 
 def test_fast_mode_records(fast):
     records, info, crops = fast
-    assert info["video"] == "test6" and info["frames"] == 700 and info["vehicles"] >= 1
+    assert info["video"] == "test3" and info["frames"] == 700 and info["vehicles"] >= 1
     assert len(records) >= 1
     for r in records:
         assert set(r) == FIELDS

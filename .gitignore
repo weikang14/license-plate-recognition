@@ -13,3 +13,8 @@ __pycache__/
 docs/superpowers/
 
 docs/improvement-plan.*
+
+# made by tools/setup_env.py
+.venv/
+oxr_model/
+local.env
