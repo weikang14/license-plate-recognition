@@ -1,4 +1,4 @@
-"""Runs the real models + Tesseract on the first 700 frames of test3 (in the release zip; JHB 2149 is confirmed at 0 s, 9 s and 21 s)."""
+"""Runs the real models + Tesseract on the first 700 frames of sample_videos/test3 (JHB 2149 is confirmed at 0 s, 9 s and 21 s)."""
 import os
 from pathlib import Path
 
@@ -8,12 +8,12 @@ import pytest
 from tools.lpr_pipeline import Models, is_capture_frame, process_video
 
 ROOT = Path(__file__).resolve().parent.parent
-VIDEO = ROOT / "videos" / "testing_video" / "test3.mp4"
+VIDEO = ROOT / "sample_videos" / "test3.mp4"
 FIELDS = {"id", "video", "frame", "time_s", "car_id", "plate", "yolo_chars", "n_chars", "score", "match", "crop", "oxr", "agreed"}
 
 pytestmark = [
     pytest.mark.skipif(not Path(os.environ.get("TESSERACT_CMD", "")).is_file(), reason="Tesseract not found: set TESSERACT_CMD"),
-    pytest.mark.skipif(not VIDEO.is_file(), reason="test videos are local-only (not in the repository)"),
+    pytest.mark.skipif(not VIDEO.is_file(), reason="sample_videos/test3.mp4 not found"),
 ]
 
 

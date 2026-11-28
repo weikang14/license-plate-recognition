@@ -12,7 +12,7 @@ A final year project that reads Malaysian license plates from video, plus a dash
 
 ![Model performance](docs/screenshots/models.png)
 
-Download the highlight videos (MP4, 1280x720): [test videos](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-1.mp4) (28 MB) and [dashcam clips](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-2.mp4) (31 MB). To run the project yourself, download [license-plate-recognition.zip](https://github.com/weikang14/license-plate-recognition/releases/latest/download/license-plate-recognition.zip) (480 MB: code, models and five test videos) and see [Download and run](#download-and-run).
+Download the highlight videos (MP4, 1280x720): [test videos](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-1.mp4) (28 MB) and [dashcam clips](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-2.mp4) (31 MB). To run the project yourself, clone this repository or [download it as a zip](https://github.com/weikang14/license-plate-recognition/archive/refs/heads/main.zip) (about 430 MB: code, models and five test videos) and see [Download and run](#download-and-run).
 
 ## How it works
 
@@ -72,6 +72,7 @@ On the CPU the detectors alone run at about 15 fps, below the cameras' 25-30 fps
 ```
 code/Final_License_Plate_Detection.ipynb   original FYP notebook
 models/                                    plate.pt, plate_letter.pt, yolov8n.pt
+sample_videos/                             five test videos with no people in view, to try the pipeline on
 tools/lpr_pipeline.py                      the notebook's pipeline as a module
 tools/build_site_data.py                   runs the pipeline on a folder of videos, writes the site data for it
 tools/merge_site_data.py                   combines those folders into web/data/ and cuts the highlight videos
@@ -85,17 +86,17 @@ tests/                                     pytest and node tests
 
 ## Download and run
 
-[license-plate-recognition.zip](https://github.com/weikang14/license-plate-recognition/releases/latest/download/license-plate-recognition.zip) in the [latest release](https://github.com/weikang14/license-plate-recognition/releases/latest) is this repository plus the five test videos with no people in view (test2, test3, test4, MOVI0022, MOVI0024) in `videos/testing_video/`. The other ten show drivers' faces or passers-by and are not published. Running the pipeline needs an NVIDIA GPU (OXR runs on CUDA) and Python 3.12. In the unzipped folder, on Windows:
+Everything needed is in this repository: `git clone https://github.com/weikang14/license-plate-recognition.git`, or [download it as a zip](https://github.com/weikang14/license-plate-recognition/archive/refs/heads/main.zip) (about 430 MB). `sample_videos/` holds five of the fifteen test videos, the ones with no people in view (test2, test3, test4, MOVI0022, MOVI0024), without sound; test3 and test4 are cut to 36 and 46 seconds to stay under GitHub's 100 MB file limit, and the cut parts hold no plate captures. The other ten show drivers' faces or passers-by and are not published. Running the pipeline needs an NVIDIA GPU (OXR runs on CUDA) and Python 3.12. In the project folder, on Windows:
 
 ```
 python tools/setup_env.py
 .venv\Scripts\python -m pytest tests
-.venv\Scripts\python tools/build_site_data.py --videos videos/testing_video --out videos/built/test --playback 3
-.venv\Scripts\python tools/merge_site_data.py --out web/data "Test videos=videos/built/test"
+.venv\Scripts\python tools/build_site_data.py --videos sample_videos --out videos/built/samples --playback 3
+.venv\Scripts\python tools/merge_site_data.py --out web/data "Sample videos=videos/built/samples"
 .venv\Scripts\python tools/serve.py
 ```
 
-`setup_env.py` makes `.venv` (PyTorch with CUDA, and `requirements.txt`), downloads the OXR-1.0 weights (3.1 GB) into `oxr_model/` and writes `local.env`, which tells the tools where OXR, Tesseract and ffmpeg are. If Tesseract or ffmpeg is missing, it prints the command that installs it (or set `TESSERACT_CMD`, `FFMPEG` and `FFPROBE` to their paths); `--cuda cu126` picks an older CUDA build for older drivers. On Linux, use `.venv/bin/python`. Run the tests before the build: some of them check the published data against this README, and the build replaces that data in your copy with the results for these five videos (about 5 minutes on an RTX 4060 laptop GPU; unzip again to get the published data back). `--videos` can point at any folder of .mp4 files.
+`setup_env.py` makes `.venv` (PyTorch with CUDA, and `requirements.txt`), downloads the OXR-1.0 weights (3.1 GB) into `oxr_model/` and writes `local.env`, which tells the tools where OXR, Tesseract and ffmpeg are. If Tesseract or ffmpeg is missing, it prints the command that installs it (or set `TESSERACT_CMD`, `FFMPEG` and `FFPROBE` to their paths); `--cuda cu126` picks an older CUDA build for older drivers. On Linux, use `.venv/bin/python`. Run the tests before the build: some of them check the published data against this README, and the build replaces that data in your copy with the results for these five videos (about 5 minutes on an RTX 4060 laptop GPU; `git checkout web/data` or a fresh download brings the published data back). `--videos` can point at any folder of .mp4 files.
 
 ## Run the dashboard locally
 

@@ -1,6 +1,7 @@
 """Checks the generated web/data against the site's contract. Skipped until build_site_data.py has run."""
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -11,8 +12,10 @@ WEB = ROOT / "web"
 DATA = WEB / "data"
 FIELDS = {"id", "video", "frame", "time_s", "car_id", "plate", "yolo_chars", "n_chars", "score", "match", "crop", "oxr", "agreed"}
 MB = 1024 * 1024
+FFPROBE = os.environ.get("FFPROBE", "ffprobe")
 
 pytestmark = pytest.mark.skipif(not (DATA / "summary.json").is_file(), reason="run tools/build_site_data.py first")
+needs_ffprobe = pytest.mark.skipif(shutil.which(FFPROBE) is None, reason="ffprobe not found: set FFPROBE (it comes with ffmpeg)")
 
 
 def load(name):
@@ -20,7 +23,7 @@ def load(name):
 
 
 def probe(path, entries="codec_name,pix_fmt,avg_frame_rate,duration"):
-    out = subprocess.run([os.environ.get("FFPROBE", "ffprobe"), "-v", "error", "-select_streams", "v:0",
+    out = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v:0",
                           "-show_entries", f"stream={entries}", "-of", "json", str(path)],
                          capture_output=True, text=True, check=True).stdout
     return json.loads(out)["streams"][0]
@@ -49,6 +52,7 @@ def test_summary_consistent():
     assert all(isinstance(r["car_id"], int) for r in records)
 
 
+@needs_ffprobe
 def test_each_source_has_a_reel_of_its_videos_with_a_verified_plate():
     records, s = load("records.json"), load("summary.json")
     assert [g["label"] for g in s["reels"]] == ["Test videos", "Dashcam"]
@@ -63,6 +67,7 @@ def test_each_source_has_a_reel_of_its_videos_with_a_verified_plate():
         assert int(probe(WEB / g["src"], "nb_frames")["nb_frames"]) == frames, g["label"]
 
 
+@needs_ffprobe
 def test_videos_are_browser_playable():
     videos = sorted((DATA / "videos").glob("*.mp4"))
     assert [v.name for v in videos] == ["reel-1.mp4", "reel-2.mp4"]
