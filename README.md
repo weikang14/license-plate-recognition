@@ -12,7 +12,7 @@ A final year project that reads Malaysian license plates from video, plus a dash
 
 ![Model performance](docs/screenshots/models.png)
 
-Download the highlight videos (MP4, 1280x720): [test videos](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-1.mp4) (28 MB) and [dashcam clips](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-2.mp4) (31 MB). To run the project yourself, clone this repository or [download it as a zip](https://github.com/weikang14/license-plate-recognition/archive/refs/heads/main.zip) (about 430 MB: code, models and five test videos) and see [Download and run](#download-and-run).
+Download the highlight videos (MP4, 1280x720): [test videos](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-1.mp4) (28 MB) and [dashcam clips](https://github.com/weikang14/license-plate-recognition/raw/main/web/data/videos/reel-2.mp4) (31 MB). To run the project yourself, clone this repository or [download it as a zip](https://github.com/weikang14/license-plate-recognition/archive/refs/heads/main.zip) (about 420 MB: code, models and five test videos) and see [Download and run](#download-and-run).
 
 ## How it works
 
@@ -86,7 +86,7 @@ tests/                                     pytest and node tests
 
 ## Download and run
 
-Everything needed is in this repository: `git clone https://github.com/weikang14/license-plate-recognition.git`, or [download it as a zip](https://github.com/weikang14/license-plate-recognition/archive/refs/heads/main.zip) (about 430 MB). `sample_videos/` holds five of the fifteen test videos, the ones with no people in view (test2, test3, test4, MOVI0022, MOVI0024), without sound; test3 and test4 are cut to 36 and 46 seconds to stay under GitHub's 100 MB file limit, and the cut parts hold no plate captures. The other ten show drivers' faces or passers-by and are not published. Running the pipeline needs an NVIDIA GPU (OXR runs on CUDA) and Python 3.12. In the project folder, on Windows:
+Everything needed is in this repository: `git clone https://github.com/weikang14/license-plate-recognition.git`, or [download it as a zip](https://github.com/weikang14/license-plate-recognition/archive/refs/heads/main.zip) (about 420 MB). `sample_videos/` holds five of the fifteen test videos, the ones with no people in view (test2, test3, test4, MOVI0022, MOVI0024), without sound; test3 and test4 are cut to 36 and 46 seconds to stay under GitHub's 100 MB file limit, and the cut parts hold no plate captures. The other ten show drivers' faces or passers-by and are not published. Running the pipeline needs an NVIDIA GPU (OXR runs on CUDA) and Python 3.12. In the project folder, on Windows:
 
 ```
 python tools/setup_env.py
