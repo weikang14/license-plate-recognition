@@ -9,7 +9,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
 DATA = WEB / "data"
-FIELDS = {"id", "video", "frame", "time_s", "car_id", "plate", "yolo_chars", "n_chars", "score", "match", "crop"}
+FIELDS = {"id", "video", "frame", "time_s", "car_id", "plate", "yolo_chars", "n_chars", "score", "match", "crop", "oxr", "agreed"}
 MB = 1024 * 1024
 
 pytestmark = pytest.mark.skipif(not (DATA / "summary.json").is_file(), reason="run tools/build_site_data.py first")

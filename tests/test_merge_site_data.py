@@ -86,3 +86,17 @@ def test_merge_refuses_two_sources_with_the_same_video(tmp_path):
         (d / "summary.json").write_text(json.dumps({"per_video": [{"video": "X"}]}), encoding="utf-8")
     with pytest.raises(SystemExit, match="X"):
         m.check_sources([("one", a), ("two", b)])
+
+
+def test_reel_cutting_never_reads_the_console(tmp_path, monkeypatch):
+    calls = []
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        if not kw.get("capture_output"):  # ffmpeg writes its last argument; ffprobe reports 250 frames
+            Path(cmd[-1]).write_bytes(b"x")
+        return type("Done", (), {"stdout": "250\n"})
+    monkeypatch.setattr(m.subprocess, "run", run)
+    m.cut_reel([("A", tmp_path / "A.mp4")], [{"video": "A", "frame": 30}], tmp_path / "reel.mp4", "ffmpeg", "ffprobe")
+    ffmpeg = [c for c in calls if "ffprobe" not in c[0]]  # transcode_h264 uses the FFMPEG path
+    assert len(ffmpeg) == 2 and all("-nostdin" in c for c in ffmpeg)  # the cut, then the transcode

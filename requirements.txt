@@ -1,8 +1,12 @@
-# Versions used to build the published site data (Python 3.11).
-ultralytics==8.1.27
+# Versions used to build the published site data (Python 3.12). OXR-1.0 needs a CUDA GPU: install the CUDA build of
+# PyTorch from pytorch.org (cu130 here) and download the weights from huggingface.co/SoMarkAI/OXR-1.0 (see README).
+ultralytics==8.3.127
 supervision==0.25.1
-opencv-python==4.9.0.80
-pytesseract==0.3.10
-numpy==1.26.4
-torch==2.3.1  # the CPU build is enough; install a CUDA build from pytorch.org to run on a GPU
+opencv-python==4.11.0.86
+pytesseract==0.3.13
+numpy==2.5.4
+pillow==13.0.0
+torch==2.11.0
+torchvision==0.26.0
+transformers==5.13.1
 # Not pip packages: Tesseract OCR 5 and ffmpeg (see README).

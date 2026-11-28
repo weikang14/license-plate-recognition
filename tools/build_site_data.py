@@ -2,7 +2,7 @@
 
     python tools/build_site_data.py --videos videos/testing_video --out web/data --playback 4 [--only test6 ...]
 
-Env: TESSERACT_CMD, FFMPEG (default: found on PATH). Inputs are checked first; the build goes to <out>.new
+Env: TESSERACT_CMD, FFMPEG (default: found on PATH), OXR_MODEL (the OXR-1.0 weights folder; needs a CUDA GPU). Inputs are checked first; the build goes to <out>.new
 and replaces <out> only when finished. An existing <out> is replaced only if an earlier run made it.
 """
 from __future__ import annotations  # `X | None` hints on Python 3.9
@@ -38,7 +38,7 @@ def transcode_h264(src: Path, dst: Path, max_mb: float = 25) -> None:
     """Browser-playable H.264; step quality down until the file fits max_mb."""
     ffmpeg = os.environ.get("FFMPEG", "ffmpeg")
     for height, crf in ((720, 28), (720, 32), (720, 36), (540, 36), (360, 36)):  # 360p: 5-min dashcam clips
-        subprocess.run([ffmpeg, "-y", "-v", "error", "-i", str(src), "-vf", f"scale=-2:{height}",
+        subprocess.run([ffmpeg, "-nostdin", "-y", "-v", "error", "-i", str(src), "-vf", f"scale=-2:{height}",
                         "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf), "-pix_fmt", "yuv420p",
                         "-movflags", "+faststart", "-an", str(dst)], check=True)
         if dst.stat().st_size <= max_mb * MB:
@@ -82,6 +82,8 @@ def main(argv: list[str] | None = None) -> None:
     videos = sorted(p for p in args.videos.glob("*.mp4") if not args.only or p.stem in args.only)
     if not videos:
         sys.exit(f"no .mp4 videos found in {args.videos}")
+    if not os.environ.get("OXR_MODEL"):
+        sys.exit("OXR_MODEL is not set: the site's cross-check needs OXR (see README)")
     final_out = args.out.resolve()
     preflight(final_out, os.environ.get("FFMPEG", "ffmpeg"))
     out = final_out.with_name(final_out.name + ".new")  # build here, publish() at the end
@@ -90,13 +92,13 @@ def main(argv: list[str] | None = None) -> None:
 
     # 1. Records for every video (fast mode: capture frames only).
     records, infos = [], []
-    for v in videos:
+    for i, v in enumerate(videos, 1):
         t0 = time.time()
-        rs, info = process_video(v, models, out / "crops")
+        rs, info = process_video(v, models, out / "crops", progress=True)
         records += rs
         infos.append(info)
-        print(f"{v.stem}: {len(rs)} captures, {sum(r['match'] for r in rs)} matched, {time.time() - t0:.0f} s",
-              flush=True)
+        print(f"[{i}/{len(videos)}] {v.stem}: {len(rs)} captures, {sum(r['match'] for r in rs)} matched, "
+              f"{time.time() - t0:.0f} s", flush=True)
 
     metrics = build_metrics(RUNS, FINAL, out / "plots")
     metrics["letter"] = letter_model_scores(ROOT / "models" / "plate_letter.pt")
@@ -107,15 +109,17 @@ def main(argv: list[str] | None = None) -> None:
     work = Path(os.environ.get("TEMP", tempfile.gettempdir())) / "lpr_build"
     work.mkdir(parents=True, exist_ok=True)
     strip = lambda rs: [{k: v for k, v in r.items() if k != "crop"} for r in rs]
-    for stem in chosen:
+    print(f"playback videos for {len(chosen)} of {len(videos)} videos: {chosen}", flush=True)
+    for i, stem in enumerate(chosen, 1):
         t0 = time.time()
         raw = work / f"{stem}.mp4"
-        rs, _ = process_video(next(v for v in videos if v.stem == stem), models, None, annotate_to=raw)
+        rs, _ = process_video(next(v for v in videos if v.stem == stem), models, None, annotate_to=raw, progress=True)
         if strip(rs) != strip([r for r in records if r["video"] == stem]):
             raise RuntimeError(f"{stem}: annotate mode produced different records than fast mode")
+        print(f"[{i}/{len(chosen)}] {stem}: compressing the playback video", flush=True)
         transcode_h264(raw, out / "videos" / f"{stem}.mp4")
         raw.unlink()
-        print(f"{stem}: playback video written, {time.time() - t0:.0f} s", flush=True)
+        print(f"[{i}/{len(chosen)}] {stem}: playback video written, {time.time() - t0:.0f} s", flush=True)
 
     # 3. JSON for the site.
     for r in records:

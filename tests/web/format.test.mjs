@@ -35,6 +35,12 @@ test("filterRecords searches plates ignoring case and spaces", () => {
   assert.deepEqual(ids(filterRecords(records, {})), ["a", "b", "c"]);
 });
 
+test("filterRecords searches every reader's reading", () => {
+  const recs = [...records, { id: "d", plate: "", yolo_chars: ["W", "A", "6"], oxr: "WA6605P", agreed: "", video: "x", match: false }];
+  assert.deepEqual(ids(filterRecords(recs, { q: "wa 6605" })), ["d"]);   // OXR's reading
+  assert.deepEqual(ids(filterRecords(recs, { q: "WA6" })), ["d"]);       // the character model's
+});
+
 test("filterRecords filters by video and result", () => {
   assert.deepEqual(ids(filterRecords(records, { video: "test6" })), ["a", "c"]);
   assert.deepEqual(ids(filterRecords(records, { result: "mismatch" })), ["b", "c"]);
@@ -52,14 +58,14 @@ test("reelCaptures finds each capture in the reel: segment start plus frames int
   assert.deepEqual(reelCaptures(reel, records).map((c) => [c.r.id, c.t]), [["a", 1], ["b", 3.4]]);
 });
 
-test("confirmedCaptures returns the capture where a car's same reading was verified for the second time", () => {
-  const rec = (id, video, car_id, plate, match = true) => ({ id, video, car_id, plate, match });
+test("confirmedCaptures returns the capture where a car's same agreed reading was verified for the second time", () => {
+  const rec = (id, video, car_id, agreed, match = true) => ({ id, video, car_id, plate: agreed, agreed: match ? agreed : "", match });
   const records = [
     rec("a1", "A", 1, "JX706"),              // verified once only: never confirmed
     rec("b1", "A", 2, "VEH6482"),            // a wrong reading, verified once
     rec("b2", "A", 2, "VEW6482"),
     rec("b3", "A", 2, "VEW6482", false),     // a mismatch does not count
-    rec("b4", "A", 2, "VEW6482"),            // second verified VEW6482: car 2 confirmed here
+    { ...rec("b4", "A", 2, "VEW6482"), plate: "VEW482" },  // YOLO + OXR agreed on VEW6482 again: confirmed here
     rec("c1", "B", 2, "VEW6482"),            // same car id in another video is another car
     rec("c2", "B", 2, "VEW6482"),
     rec("c3", "B", 2, "VEW6482"),            // already confirmed

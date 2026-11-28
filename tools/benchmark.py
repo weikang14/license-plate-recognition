@@ -4,11 +4,13 @@
     python tools/benchmark.py --device 0      # first CUDA GPU (needs a CUDA build of PyTorch)
 
 Stand-alone on purpose (no lpr_pipeline import), so it also runs in an environment without pytesseract;
-the Tesseract step is then skipped.
+the Tesseract step is then skipped. OXR is timed only on a GPU with OXR_MODEL set (it imports lpr_pipeline then).
 """
 import argparse
 import json
+import os
 import platform
+import sys
 import time
 from pathlib import Path
 
@@ -37,7 +39,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--device", default="cpu", help="cpu, or a CUDA device index such as 0")
     ap.add_argument("--video", type=Path, default=ROOT / "videos" / "testing_video" / "test6.mp4")
-    ap.add_argument("--crop", type=Path, default=ROOT / "web" / "data" / "crops" / "test6-000427.jpg")
+    ap.add_argument("--crop", type=Path, default=ROOT / "web" / "data" / "crops" / "test6-000429-2.jpg")  # JHB 2149, a confirmed read
     ap.add_argument("--out", type=Path, default=ROOT / "web" / "speed.json")
     ap.add_argument("--hardware", help="name to show for the device (default: what Python reports)")
     args = ap.parse_args()
@@ -59,12 +61,19 @@ def main() -> None:
         "characters_ms": ms(lambda: letter(cv2.cvtColor(plate, cv2.COLOR_GRAY2RGB), conf=0.4, device=d, verbose=False), 30),
     }
     try:
-        import os
         import pytesseract
         pytesseract.pytesseract.tesseract_cmd = os.environ.get("TESSERACT_CMD", "tesseract")
-        stages["tesseract_ms"] = ms(lambda: pytesseract.image_to_data(cv2.bitwise_not(plate), config="--psm 6"), 10)
+        if d == "cpu":  # Tesseract has no GPU version: its time belongs in the CPU column only
+            stages["tesseract_ms"] = ms(lambda: pytesseract.image_to_data(cv2.bitwise_not(plate), config="--psm 6"), 10)
     except ImportError:
         pass
+    if d != "cpu" and os.environ.get("OXR_MODEL"):
+        sys.path.insert(0, str(ROOT))
+        from PIL import Image
+        from tools.lpr_pipeline import OxrReader
+        generate = OxrReader.load(os.environ["OXR_MODEL"])._generate  # not the cached reader: time every read
+        rgb = Image.fromarray(cv2.cvtColor(cv2.imread(str(args.crop)), cv2.COLOR_BGR2RGB))
+        stages["oxr_ms"] = ms(lambda: generate(rgb), 10)
 
     hw = args.hardware or (torch.cuda.get_device_name(int(d)) if d != "cpu" else platform.processor() or "CPU")
     result = {"hardware": hw, "frame": f"{frame.shape[1]}x{frame.shape[0]}", "torch": torch.__version__,

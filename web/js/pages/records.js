@@ -1,4 +1,4 @@
-// Recognition records: every plate capture, searchable, with a detail view comparing OCR and YOLO.
+// Recognition records: every plate capture, searchable, with a detail view comparing the three readings.
 import { DASH, filterRecords, formatTime, reelCaptures } from "../format.js";
 import { esc, plateChip } from "../ui.js";
 
@@ -23,7 +23,7 @@ export function render(root, { records, summary }, params) {
       <p class="muted" aria-live="polite" id="rec-count"></p>
       <div class="table-wrap">
         <table class="records">
-          <thead><tr><th>Snapshot</th><th>Plate (OCR)</th><th>Plate (YOLO)</th><th>Video</th><th>Vehicle</th><th>Time</th><th>Confidence</th><th>Result</th></tr></thead>
+          <thead><tr><th>Snapshot</th><th>Plate (OCR)</th><th>Plate (YOLO)</th><th>Plate (OXR)</th><th>Video</th><th>Vehicle</th><th>Time</th><th>Confidence</th><th>Result</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -47,10 +47,11 @@ export function render(root, { records, summary }, params) {
     root.querySelector("#rec-count").textContent =
       `${rows.length} of ${records.length} captures${rows.length ? "" : ". Try a different search or filter."}`;
     tbody.innerHTML = shown.map((r) => `
-      <tr tabindex="0" data-id="${esc(r.id)}" aria-label="Open capture ${esc(r.plate || "with no OCR text")}">
+      <tr tabindex="0" data-id="${esc(r.id)}" aria-label="Open capture ${esc(r.agreed || r.plate || "with no OCR text")}">
         <td><img src="${esc(r.crop)}" alt="" loading="lazy"></td>
         <td>${plateChip(r.plate)}</td>
         <td>${plateChip(r.yolo_chars.join(""), "YOLO")}</td>
+        <td>${plateChip(r.oxr, "OXR")}</td>
         <td>${esc(r.video)}</td>
         <td>#${r.car_id}</td>
         <td>${formatTime(r.time_s)}</td>
@@ -68,15 +69,16 @@ export function render(root, { records, summary }, params) {
       : `<p class="muted">${esc(r.video)} is not in the highlight videos: only videos with a verified plate are.</p>`;
     dialog.innerHTML = `
       <div class="detail-head">
-        <h2 id="detail-title">${plateChip(r.plate)} ${resultTag(r)}</h2>
+        <h2 id="detail-title">${plateChip(r.agreed || r.plate)} ${resultTag(r)}</h2>
         <form method="dialog"><button type="submit" class="close">Close</button></form>
       </div>
-      <img class="detail-img" src="${esc(r.crop)}" alt="Captured plate ${esc(r.plate)}">
+      <img class="detail-img" src="${esc(r.crop)}" alt="Captured plate ${esc(r.agreed || r.plate)}">
       <dl class="compare">
         <div><dt>Tesseract OCR, left to right</dt><dd>${spaced([...(r.plate || "")])}</dd></div>
         <div><dt>YOLO characters, left to right</dt><dd>${spaced(r.yolo_chars)}</dd></div>
+        <div><dt>OXR, left to right</dt><dd>${spaced([...(r.oxr || "")])}</dd></div>
       </dl>
-      <p class="muted">A plate is verified only when both readings are identical and hold both letters and a number.</p>
+      <p class="muted">A plate is verified only when two of the three readings are identical and hold both letters and a number.</p>
       <dl class="facts">
         <div><dt>Video</dt><dd>${esc(r.video)}</dd></div>
         <div><dt>Vehicle</dt><dd>#${r.car_id}, tracked by ByteTrack</dd></div>

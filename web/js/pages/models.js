@@ -6,9 +6,10 @@ const f3 = (x) => x.toFixed(3);
 
 const STAGES = [
   ["vehicle_ms", "Vehicle detection (YOLOv8n)", "every frame"],
-  ["plate_ms", "Plate detection (YOLOv8s)", "7 frames a second"],
+  ["plate_ms", "Plate detection (YOLOv8s)", "7 frames per second of video"],
   ["characters_ms", "Character detection (YOLOv8n)", "per capture"],
-  ["tesseract_ms", "Tesseract OCR", "per capture, twice if psm 13 is needed"],
+  ["tesseract_ms", "Tesseract OCR", "per capture, twice if psm 13 is needed", "CPU only"],
+  ["oxr_ms", "OXR-1.0 (SoMark OXR)", "per capture", "GPU only"],
 ];
 
 export function letterPanel(s) {
@@ -31,7 +32,7 @@ export function letterPanel(s) {
 
 export function speedPanel(speed) {
   const devs = Object.values(speed);
-  const cell = (ms) => (ms == null ? "CPU only" : `${ms} ms`);
+  const cell = (ms, missing) => (ms == null ? missing : `${ms.toFixed(1)} ms`);  // 12.0 ms, as in the README, not 12 ms
   const fps = (d) => Math.round(1000 / (d.vehicle_ms + d.plate_ms * 7 / 30));  // plates on 7 of every 30 frames
   return `
       <section class="panel">
@@ -39,13 +40,13 @@ export function speedPanel(speed) {
         <div class="table-wrap">
           <table class="runs">
             <thead><tr><th>Stage</th><th>Runs</th>${devs.map((d) => `<th>${esc(d.hardware)}</th>`).join("")}</tr></thead>
-            <tbody>${STAGES.map(([key, label, when]) => `
-              <tr><th scope="row">${label}</th><td>${when}</td>${devs.map((d) => `<td>${cell(d[key])}</td>`).join("")}</tr>`).join("")}
-              <tr class="final"><th scope="row">Frames per second</th><td>vehicles + plates</td>${devs.map((d) => `<td>${fps(d)} fps</td>`).join("")}</tr>
+            <tbody>${STAGES.map(([key, label, when, missing]) => `
+              <tr><th scope="row">${label}</th><td>${when}</td>${devs.map((d) => `<td>${cell(d[key], missing)}</td>`).join("")}</tr>`).join("")}
+              <tr class="final"><th scope="row">Frames per second, detectors only</th><td>vehicles + plates, no reading</td>${devs.map((d) => `<td>${fps(d)} fps</td>`).join("")}</tr>
             </tbody>
           </table>
         </div>
-        <p class="muted">Frames per second leaves out video decoding and the plate reading, which runs 7 times a second for each car not yet verified. The estimate assumes 30 fps video. Tesseract has no GPU version. ${devs.map((d) => `${esc(d.hardware)}: PyTorch ${esc(d.torch)}, Ultralytics ${esc(d.ultralytics)}.`).join(" ")}</p>
+        <p class="muted">Frames per second leaves out video decoding and the plate reading. The estimate assumes 30 fps video. A plate is read on 7 frames in every second of video for each car not yet confirmed, and one capture takes all three readers, so a second of video in which a car is being read takes several seconds to process: the site data was built offline from recorded video, not live. Tesseract has no GPU version. OXR reads one crop at a time with transformers and was not timed on the CPU. ${devs.map((d) => `${esc(d.hardware)}: PyTorch ${esc(d.torch)}, Ultralytics ${esc(d.ultralytics)}.`).join(" ")}</p>
       </section>`;
 }
 

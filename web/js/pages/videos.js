@@ -39,7 +39,7 @@ export function render(root, { records, summary }, params) {
     timeline.innerHTML = mine.length
       ? mine.map((c, k) => `${k && mine[k - 1].r.video === c.r.video ? "" : `<li class="tl-video">${esc(c.r.video)}</li>`}
         <li><button type="button" data-k="${k}">
-          <span class="t">${formatTime(c.t)}</span><span class="car">#${c.r.car_id}</span>${plateChip(c.r.plate)}
+          <span class="t">${formatTime(c.t)}</span><span class="car">#${c.r.car_id}</span>${plateChip(c.r.agreed || c.r.plate)}
           ${c.r.match ? '<span class="tag tag-ok">Verified</span>' : '<span class="tag tag-warn">Mismatch</span>'}
         </button></li>`).join("")
       : '<li class="muted">No captures in this video.</li>';

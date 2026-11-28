@@ -4,9 +4,9 @@ import cv2
 import numpy as np
 
 import tools.lpr_pipeline as lpr
-from tools.lpr_pipeline import (CarTracker, Models, car_under, chars_match, clean_ocr_text, is_capture_frame,
-                                ocr_text_left_to_right, ocr_until_match, prepare_plate, process_video, reading_order,
-                                vehicle_boxes)
+from tools.lpr_pipeline import (CarTracker, Models, OxrReader, agreed_reading, car_under, chars_match, clean_ocr_text,
+                                is_capture_frame, ocr_text_left_to_right, ocr_until_match, prepare_plate, process_video,
+                                reading_order, vehicle_boxes)
 
 
 def test_car_under_uses_the_plate_centre():
@@ -74,6 +74,24 @@ def test_chars_match_compares_in_reading_order():
     assert chars_match(["7"], ["7"]) is False                         # a badge, not a plate
 
 
+def test_agreed_reading_needs_two_of_the_three_readers():
+    assert agreed_reading("JHB2149", "JHB2149", "") == "JHB2149"        # Tesseract + YOLO
+    assert agreed_reading("JHB214", "JHB2149", "JHB2149") == "JHB2149"  # YOLO + OXR
+    assert agreed_reading("VEW6482", "VEW482", "VEW6482") == "VEW6482"  # Tesseract + OXR
+    assert agreed_reading("JHB214", "JHB2149", "JHB2148") == ""         # all three differ
+    assert agreed_reading("48860", "48860", "WD4886D") == ""            # two agree, but no letters: not a plate
+    assert agreed_reading("", "", "") == ""
+
+
+def test_oxr_reader_reads_each_crop_once_and_cleans_the_text():
+    seen = []
+    reader = OxrReader(lambda img: seen.append((img.mode, img.size)) or "jhb 2149\n")
+    crop = np.zeros((20, 60, 3), np.uint8)
+    assert reader(crop) == "JHB2149" and reader(crop.copy()) == "JHB2149"  # same pixels: read once (annotate mode re-reads)
+    assert seen == [("RGB", (60, 20))]
+    assert reader(np.ones((20, 60, 3), np.uint8)) == "JHB2149" and len(seen) == 2
+
+
 def test_reading_order_sorts_boxes_left_to_right_and_skips_back_car():
     names = {0: "J", 1: "H", 2: "B", 3: "back_car"}
     boxes = [[300, 10, 380, 90, 0.9, 2], [0, 0, 800, 100, 0.6, 3], [20, 10, 100, 90, 0.8, 0], [160, 10, 240, 90, 0.95, 1]]
@@ -96,16 +114,19 @@ def test_prepare_plate_is_gray_800_wide_and_keeps_aspect():
     assert out.shape == (240, 800) and out.dtype == np.uint8
 
 
-def test_ocr_until_match_stops_at_the_first_reading_that_agrees_with_yolo():
+def test_ocr_until_match_stops_at_the_first_reading_that_agrees_with_another_reader():
     calls = []
     def reader(readings):
         def read(psm):
             calls.append(psm)
             return readings[psm]
         return read
-    assert ocr_until_match(reader({6: "JHB2149", 13: "X"}), list("JHB2149")) == "JHB2149" and calls == [6]
-    assert ocr_until_match(reader({6: "JHB214", 13: "JHB2149"}), list("JHB2149")) == "JHB2149"
-    assert ocr_until_match(reader({6: "JHB214", 13: ""}), list("JHB2149")) == "JHB214"  # no agreement: first reading kept
+    yolo, oxr = list("JHB2149"), list("JHB214")
+    assert ocr_until_match(reader({6: "JHB2149", 13: "X"}), [yolo, []]) == "JHB2149" and calls == [6]
+    assert ocr_until_match(reader({6: "JHB214", 13: "JHB2149"}), [yolo, []]) == "JHB2149"
+    assert ocr_until_match(reader({6: "JHB214", 13: ""}), [yolo, []]) == "JHB214"  # no agreement: first reading kept
+    calls.clear()
+    assert ocr_until_match(reader({6: "JHB214", 13: "JHB2149"}), [yolo, oxr]) == "JHB214" and calls == [6]  # agrees with OXR
 
 
 class FakeDetector:
@@ -141,18 +162,23 @@ def grey_video(tmp_path, frames):
 
 
 def test_a_car_is_read_once_on_every_capture_frame_until_the_same_plate_is_verified_twice(tmp_path, monkeypatch):
-    readings = iter([("JHB214", list("JHB2149")), ("JHB2149", list("JHB2149")), ("VEH6482", list("VEH6482")),
-                     ("", list("JHB2149")), ("JHB2149", list("JHB2149"))])
+    readings = iter([("JHB214", list("JHB2149"), "JHB2148"),   # (Tesseract, YOLO characters, OXR): all differ
+                     ("JHB214", list("JHB2149"), "JHB2149"),   # YOLO + OXR agree: verified once
+                     ("VEH6482", list("VEH6482"), ""),         # Tesseract + YOLO agree on another reading
+                     ("", list("JHB2149"), ""),
+                     ("JHB2149", list("JHB214"), "JHB2149")])  # Tesseract + OXR: JHB2149 verified twice, confirmed
     monkeypatch.setattr(lpr, "_read_plate", lambda region, models: next(readings))
     car = BoxDetector([[0, 0, 64, 48, 0.9, 2]])
     plates = BoxDetector([[20, 30, 44, 40, 0.9, 0], [20, 5, 44, 15, 0.8, 0]])  # two plate boxes on the one car
     records, _ = process_video(grey_video(tmp_path, 40), Models(car, plates, FakeDetector()), None)
-    assert [(r["frame"], r["plate"], r["match"]) for r in records] == [  # 25 fps: 7 a second; a 6th read would fail
-        (4, "JHB214", False), (8, "JHB2149", True), (11, "VEH6482", True), (15, "", False), (18, "JHB2149", True)]
+    assert [(r["frame"], r["plate"], r["oxr"], r["agreed"], r["match"]) for r in records] == [  # 7 a second at 25 fps
+        (4, "JHB214", "JHB2148", "", False), (8, "JHB214", "JHB2149", "JHB2149", True),
+        (11, "VEH6482", "", "VEH6482", True), (15, "", "", "", False),
+        (18, "JHB2149", "JHB2149", "JHB2149", True)]  # confirmed: a 6th read would fail
 
 
 def test_cars_in_the_same_frame_are_each_read(tmp_path, monkeypatch):
-    monkeypatch.setattr(lpr, "_read_plate", lambda region, models: ("AB1", list("AB1")))
+    monkeypatch.setattr(lpr, "_read_plate", lambda region, models: ("AB1", list("AB1"), ""))
     cars = BoxDetector([[0, 0, 30, 48, 0.9, 2], [34, 0, 64, 48, 0.9, 2]])
     plates = BoxDetector([[5, 30, 25, 40, 0.9, 0], [39, 30, 59, 40, 0.9, 0]])
     records, _ = process_video(grey_video(tmp_path, 20), Models(cars, plates, FakeDetector()), tmp_path / "crops")
@@ -173,3 +199,11 @@ def test_capture_frames_reach_the_plate_detector_in_the_same_batches_in_both_mod
     assert fast == [[4, 8], [11, 15], [18]]  # capture frames only (7 a second at 25 fps), one call per batch of 8 frames
     annotated = plate_calls(annotate_to=tmp_path / "boxed.mp4")
     assert all(c in annotated for c in fast), annotated
+
+
+def test_progress_bar_counts_the_video_frames(tmp_path, capsys):
+    detectors = Models(FakeDetector(), FakeDetector(), FakeDetector())
+    process_video(grey_video(tmp_path, 20), detectors, None)
+    assert capsys.readouterr().err == ""  # off unless asked for (tests, notebooks)
+    process_video(grey_video(tmp_path, 20), detectors, None, progress=True)
+    assert "20/20" in capsys.readouterr().err  # frames done / frames in the video, with elapsed and remaining time

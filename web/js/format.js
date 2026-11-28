@@ -21,12 +21,14 @@ export function formatPct(x) {
 
 const squash = (s) => (s || "").replace(/\s+/g, "").toUpperCase();
 
-/** q matches the plate ignoring case/spaces; result is "all" | "matched" | "mismatch". */
+const readings = (r) => [r.plate, (r.yolo_chars || []).join(""), r.oxr, r.agreed];
+
+/** q matches any reader's reading ignoring case/spaces; result is "all" | "matched" | "mismatch". */
 export function filterRecords(records, { q = "", video = "all", result = "all" } = {}) {
   const needle = squash(q);
   return records.filter(
     (r) =>
-      (!needle || squash(r.plate).includes(needle)) &&
+      (!needle || readings(r).some((s) => squash(s).includes(needle))) &&
       (video === "all" || r.video === video) &&
       (result === "all" || (result === "matched") === r.match),
   );
@@ -44,11 +46,11 @@ export function reelCaptures(reel, records) {
   return out.sort((a, b) => a.t - b.t);
 }
 
-// The capture that confirmed each car's plate: its same reading verified for the second time (the pipeline's rule).
+// The capture that confirmed each car's plate: its same agreed reading verified for the second time (the pipeline's rule).
 export function confirmedCaptures(records) {
   const once = new Set(), done = new Set(), out = [];
   for (const r of records) {
-    const car = `${r.video}#${r.car_id}`, key = `${car}|${r.plate}`;
+    const car = `${r.video}#${r.car_id}`, key = `${car}|${r.agreed}`;
     if (!r.match || done.has(car)) continue;
     if (once.has(key)) { done.add(car); out.push(r); } else once.add(key);
   }

@@ -14,8 +14,8 @@ export function render(root, { records, summary }) {
   ];
   // one row per confirmed plate, from its latest confirmation; a single verified capture can still be wrong
   const confirmed = confirmedCaptures(records);
-  const recent = [...new Map(confirmed.map((r) => [r.plate, r])).values()].reverse();
-  const cars = (plate) => confirmed.filter((r) => r.plate === plate).length;
+  const recent = [...new Map(confirmed.map((r) => [r.agreed, r])).values()].reverse();
+  const cars = (plate) => confirmed.filter((r) => r.agreed === plate).length;
 
   root.innerHTML = `
     <div class="stack">
@@ -37,9 +37,9 @@ export function render(root, { records, summary }) {
         <h2>Confirmed plates <small>the same reading verified twice on one vehicle</small></h2>
         ${recent.length ? `<ul class="recent">${recent.map((r) => `
           <li><a href="#/records?id=${encodeURIComponent(r.id)}">
-            <img src="${esc(r.crop)}" alt="Plate ${esc(r.plate)}" loading="lazy">
-            ${plateChip(r.plate)}
-            <span class="muted">Vehicle #${r.car_id} in ${esc(r.video)} at ${formatTime(r.time_s)}${cars(r.plate) > 1 ? `, ${cars(r.plate)} vehicles in all` : ""}</span>
+            <img src="${esc(r.crop)}" alt="Plate ${esc(r.agreed)}" loading="lazy">
+            ${plateChip(r.agreed)}
+            <span class="muted">Vehicle #${r.car_id} in ${esc(r.video)} at ${formatTime(r.time_s)}${cars(r.agreed) > 1 ? `, ${cars(r.agreed)} vehicles in all` : ""}</span>
             <span class="muted">${r.score.toFixed(2)}</span>
           </a></li>`).join("")}</ul>`
         : `<p class="state">No vehicle had the same reading verified twice yet. See <a href="#/records">all captures</a>.</p>`}

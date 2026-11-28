@@ -20,11 +20,11 @@ def test_readme_failure_claims_match_records():
 
 
 def confirmed_cars(records):
-    """Cars whose same reading passed the cross-check twice (the pipeline's rule for confirming a plate)."""
+    """Cars whose same agreed reading passed the cross-check twice (the pipeline's rule for confirming a plate)."""
     passed, done = set(), set()
     for r in sorted(records, key=lambda r: (r["video"], r["frame"])):
         if r["match"]:
-            key = (r["video"], r["car_id"], r["plate"])
+            key = (r["video"], r["car_id"], r["agreed"])
             (done.add(key[:2]) if key in passed else passed.add(key))
     return done
 
@@ -50,7 +50,7 @@ def test_readme_results_table_matches_the_data():
     assert row("Plate captures (plates on a tracked car)", lambda per, rs: f"{len(rs)}, from {cars(rs)} vehicles") in text
     verified = lambda per, rs: (lambda v: f"{len(v)} ({len(v) / len(rs) * 100:.1f}%), from {cars(v)} vehicles")(
         [r for r in rs if r["match"]])
-    assert row("Verified by the OCR + YOLO cross-check", verified) in text
+    assert row("Verified by the cross-check (2 of 3 readers agree)", verified) in text
     assert row("Vehicles with a confirmed plate (same reading verified twice)",
                lambda per, rs: f"{len(confirmed_cars(rs))} of {cars(rs)}") in text
     assert row("Average detection confidence", lambda per, rs: f"{sum(r['score'] for r in rs) / len(rs):.3f}") in text

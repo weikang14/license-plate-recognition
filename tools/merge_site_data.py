@@ -69,7 +69,7 @@ def cut_reel(parts: list[tuple[str, Path]], records: list[dict], dst: Path, ffmp
                       f"box=1:boxcolor=black@0.5:boxborderw=8[v{i}]")
     graph = ";".join(chains) + ";" + "".join(f"[v{i}]" for i in range(len(parts))) + f"concat=n={len(parts)}:v=1:a=0[out]"
     cut = dst.with_name(dst.stem + ".cut.mp4")
-    subprocess.run([ffmpeg, "-y", "-v", "error", *inputs, "-filter_complex", graph, "-map", "[out]", "-r", str(REEL_FPS),
+    subprocess.run([ffmpeg, "-nostdin", "-y", "-v", "error", *inputs, "-filter_complex", graph, "-map", "[out]", "-r", str(REEL_FPS),
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", str(cut)], check=True)
     transcode_h264(cut, dst, REEL_MAX_MB)
     cut.unlink()

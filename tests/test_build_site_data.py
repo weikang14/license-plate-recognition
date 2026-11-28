@@ -58,3 +58,15 @@ def test_publish_swaps_staging_into_place(tmp_path):
     (staging / "new.json").write_text("new")
     b.publish(staging, out)
     assert [p.name for p in out.iterdir()] == ["new.json"] and not staging.exists()
+
+
+def test_ffmpeg_never_reads_the_console(tmp_path, monkeypatch):
+    # A key pressed in the build window once left ffmpeg waiting at its "Enter command:" prompt, stalling the build.
+    calls = []
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        Path(cmd[-1]).write_bytes(b"x")
+    monkeypatch.setattr(b.subprocess, "run", run)
+    b.transcode_h264(tmp_path / "in.mp4", tmp_path / "out.mp4")
+    assert calls and all("-nostdin" in c for c in calls)

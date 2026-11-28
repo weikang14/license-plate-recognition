@@ -2,13 +2,14 @@
 import { confirmedCaptures, formatPct, formatPlate } from "../format.js";
 
 const REPO = "https://github.com/weikang14/license-plate-recognition";
+const OXR = "https://github.com/SoMarkAI/OXR";
 
 const STEPS = [
   ["Find and track vehicles", "YOLOv8n (COCO) finds vehicles in every frame (cars, plus buses and trucks, because a car close to the camera is often labelled truck), and ByteTrack (supervision) gives each one an id that follows it from frame to frame and survives gaps of up to 3 seconds."],
-  ["Find the plate", "A YOLOv8s plate detector trained for this project. A plate only counts when it sits on a tracked car, so a photo of a plate held up to the camera is ignored. Plates at 0.75 confidence or higher are captured 7 times a second, one per car, until the same reading of the car's plate has been verified twice; the tracked car then keeps that reading and is not read again."],
-  ["Prepare it", "The crop is converted to grayscale and enlarged to 800 pixels wide. The project's fixed perspective correction is no longer used (see What the experiments taught)."],
-  ["Read it twice", "Tesseract OCR reads the text, and a second YOLOv8 model detects each character on its own. If the two readings differ, Tesseract reads the plate once more as a single line of text."],
-  ["Cross-check", "Both readings are put in left-to-right order, and the capture is verified only when they are identical and hold both letters and a number, as Malaysian plates do, including the series sold at auction (W 1, MALAYSIA 8). A vehicle's plate is confirmed when the same reading is verified twice, because both readers sometimes drop the same characters."],
+  ["Find the plate", "A YOLOv8s plate detector trained for this project. A plate only counts when it sits on a tracked car, so a photo of a plate held up to the camera is ignored. The plate detector runs on 7 evenly spaced frames in every second of video, and plates at 0.75 confidence or higher are captured on those frames, one per car, until the same reading of the car's plate has been verified twice; the tracked car then keeps that reading and is not read again."],
+  ["Prepare it", "For Tesseract and the character model, the crop is converted to grayscale and enlarged to 800 pixels wide. The project's fixed perspective correction is no longer used (see What the experiments taught)."],
+  ["Read it three times", "Tesseract OCR reads the text, and a second YOLOv8 model, trained for this project, detects each character on its own. Since the project, a third reader has been added: OXR-1.0, a 1.3-billion-parameter document-reading model from SoMark, reads the colour crop as a whole. If Tesseract agrees with neither of the others, it reads the plate once more as a single line of text."],
+  ["Cross-check", "All three readings are put in left-to-right order, and the capture is verified when two of the three are identical and hold both letters and a number, as Malaysian plates do, including the series sold at auction (W 1, MALAYSIA 8). A vehicle's plate is confirmed when the same reading is verified twice, because two readers sometimes make the same mistake."],
 ];
 
 function describeConfirmed(plates) {
@@ -18,11 +19,13 @@ function describeConfirmed(plates) {
   return `The confirmed plates are ${names.slice(0, -1).join(", ")} and ${names.at(-1)}.`;
 }
 
-export function render(root, { records, summary, metrics }) {
+export function render(root, { records, summary, metrics, speed }) {
   const final = metrics.runs.find((r) => r.key === metrics.final);
   const noText = records.filter((r) => !r.plate).length;
   const confirmed = confirmedCaptures(records);
-  const verifiedLine = describeConfirmed(confirmed.map((r) => r.plate));
+  const verifiedLine = describeConfirmed(confirmed.map((r) => r.agreed));
+  const oxrMs = speed?.gpu?.oxr_ms;
+  const oxrTime = oxrMs ? `about ${(oxrMs / 1000).toFixed(1)} seconds per capture on the ${speed.gpu.hardware}` : "about half a second per capture on a laptop GPU";
   const vehicles = new Set(records.map((r) => `${r.video}#${r.car_id}`)).size;
   const perVehicle = `Counted per vehicle, ${confirmed.length} of the ${vehicles} vehicles with a plate capture had their plate confirmed.`;
 
@@ -30,7 +33,7 @@ export function render(root, { records, summary, metrics }) {
     <div class="about">
       <section class="panel prose">
         <h2>What this project does</h2>
-        <p>This system reads Malaysian license plates from video. It finds a vehicle, keeps tracking it, finds the plate on it, and reads the plate with two independent methods. A plate is only recorded as verified when both methods agree, and the results are saved to a CSV file. It was built as a final year project to automate the plate logging that security staff still do by hand at the entrances of housing areas, malls and office buildings.</p>
+        <p>This system reads Malaysian license plates from video. It finds a vehicle, keeps tracking it, finds the plate on it, and reads the plate with independent methods: two in the project, and a third added since. A plate is only recorded as verified when the methods agree. The project saved the results to a CSV file; the pipeline behind this dashboard saves them as JSON. It was built as a final year project to automate the plate logging that security staff still do by hand at the entrances of housing areas, malls and office buildings.</p>
 
         <h3>Background</h3>
         <p>Malaysia has about 22 million registered vehicles for about 34 million people, roughly 66 vehicles for every 100 residents and the second-highest rate in Southeast Asia after Brunei. Recording every entry and exit by hand is slow and inefficient, and plates are easier to identify a vehicle by than its make, model or colour. With an ageing population and younger workers less willing to take repetitive jobs, automating this work matters more.</p>
@@ -39,18 +42,20 @@ export function render(root, { records, summary, metrics }) {
         <p>Examine how license plate detection, built on computer vision and artificial intelligence, can automate the recording of vehicles entering and leaving, and look at the trends and prospects of the technology.</p>
 
         <h3>Results</h3>
-        <p>The plate detector used by the pipeline, a YOLOv8s trained from scratch, reached a validation mAP50 of ${final.best.map50.toFixed(3)}, with precision ${final.best.precision.toFixed(3)} and recall ${final.best.recall.toFixed(3)}. Across ${summary.videos} recorded videos (test videos and dashcam clips), the pipeline tracked ${summary.vehicles} vehicles and made ${summary.captures} plate captures, and ${summary.matched} of them (${formatPct(summary.match_rate)}) passed the OCR and YOLO cross-check. ${perVehicle} Every number on this site comes from that run.</p>
+        <p>The plate detector used by the pipeline, a YOLOv8s trained from scratch, reached a validation mAP50 of ${final.best.map50.toFixed(3)}, with precision ${final.best.precision.toFixed(3)} and recall ${final.best.recall.toFixed(3)}. Across ${summary.videos} recorded videos (test videos and dashcam clips), the pipeline tracked ${summary.vehicles} vehicles and made ${summary.captures} plate captures, and ${summary.matched} of them (${formatPct(summary.match_rate)}) passed the cross-check, where two of the three readers must agree. ${perVehicle} Every number on this site comes from that run.</p>
 
         <h3>What the experiments taught</h3>
         <p>Training started from pre-trained YOLOv8n weights, which gave stable results. Fine-tuning YOLOv8s and YOLOv8m from pre-trained weights on more than 13,000 images then gave excellent training scores but poor detection on real footage. Training from scratch from the model definition (.yaml) worked as expected, so the final plate detectors were trained that way. For data that differs a lot from what the pre-trained weights saw, training from scratch is often the better choice.</p>
         <p>After the project, the reading step was tested on the saved plate snapshots. The original perspective correction used four fixed points that suit one plate position, so on most plates it cropped or skewed characters for both readers. Rerunning all 15 test videos without it raised verified captures from 10 to 47 (6.7% to 31.5%), so it was removed. Comparing the two readings in left-to-right order, with the character model at confidence 0.4 and a second Tesseract pass that reads the plate as a single line, then raised them to 60 (40.3%), with no plate passing out of order. Keeping each vehicle's id through gaps of up to 3 seconds then lowered the vehicle count from 223 to 184, because a car that stays in view is no longer counted twice. Reading each tracked car only until its plate is verified then cut captures from 156 to 67 with the same 34 vehicles verified, because a verified car had been read again every 1.5 seconds while it stayed in view. Dropping the 1.5-second gap and reading plates 7 times a second (the original code read every 7th frame, about 4 times a second) then raised the vehicles with a verified plate from 34 to 42 of 48. With more reads, both readers once agreed on a wrong reading (VEH 6482 for VEW 6482), so a plate is now confirmed only when the same reading is verified twice; all 42 confirmed plates are correct. Requiring the agreed reading to hold both letters and a number changed nothing on these videos, where every verified reading already was one; it is there for longer dashcam footage, where both readers agreed on a car badge read as 7 and on a plate read without its letters. Limiting OCR to the letters used on Malaysian plates (no I, O or Z) made no difference to the cross-check.</p>
+        <p>Adding OXR as a third reader, with a capture verified when two of the three readers agree, raised verified captures on the test videos from 85 (26.5%) to 90 (55.2%) and the vehicles with a confirmed plate from 42 to 44 of 48, all correct. It also halved the captures, from 321 to 163, because cars are confirmed sooner and then no longer read. On the dashcam clips the vehicles with a confirmed plate rose from 9 to 26 of 195, all 26 correct when checked by eye against the snapshots. On the captures of the confirmed vehicles, OXR read the whole plate exactly in 78% of them, Tesseract in 37% and the character model in 15%; Tesseract and OXR agree in 137 of the 159 verified captures, and the character model in 62. The rule that the same reading must pass twice still matters: six times, two readers agreed once on a wrong reading, such as WA 8605 P for WA 6605 P, and none of those was confirmed.</p>
 
         <h3>Limitations and next steps</h3>
-        <p>On these videos both readers fail often: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so many captures end as a mismatch. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the vehicle and plate, and that plates filmed at close range left too little space after correction for OCR to read the letters; that correction has since been removed. The tracker matches vehicles by position only, so when one car passes close in front of a parked one it can take over the parked car's id. The camera also has no zoom.</p>
+        <p>On these videos the readers often fail: Tesseract returned no text on ${noText} of ${summary.captures} captures, and the character model frequently misses a character, so many captures end as a mismatch. OXR reads far more plates correctly than either, but it is a general document model and the slowest step by far, ${oxrTime}. The 7 reads a second are counted in video time: the data on this site was built from recorded video, not live, and while a car is being read the laptop needs several seconds for each second of video. ${verifiedLine} The project report adds that detection confidence drops when the camera is not level with the vehicle and plate, and that plates filmed at close range left too little space after correction for OCR to read the letters; that correction has since been removed. The tracker matches vehicles by position only, so when one car passes close in front of a parked one it can take over the parked car's id. The camera also has no zoom.</p>
         <p>Next steps:</p>
         <ol class="next-steps stack-list">
-          <li>Replace Tesseract, the character model and the cross-check with a single recognition model that reads the whole plate in one pass. Running two readers on every capture, and Tesseract a second time when they disagree, is the slowest part of reading a plate, and Tesseract cannot run on a GPU.</li>
-          <li>Support two-row plates. The left-to-right ordering only works for plates written on one line.</li>
+          <li>Replace the three readers and the cross-check with a single recognition model, trained on Malaysian plates, that reads the whole plate in one pass. OXR shows how much better a model that reads the whole crop does here than Tesseract, but it is a general document model, far larger and slower than this job needs, and Tesseract cannot run on a GPU.</li>
+          <li>Until then, make OXR faster. It reads one crop at a time with transformers; reading all the crops of a frame in one batch, or serving it with vLLM on Linux as SoMark does, would cut the wait.</li>
+          <li>Support two-row plates in the character model. Its left-to-right ordering only works for plates written on one line; OXR already reads two-row plates.</li>
           <li>Stop a car that passes in front of a parked one from taking over the parked car's id.</li>
         </ol>
       </section>
@@ -73,6 +78,7 @@ export function render(root, { records, summary, metrics }) {
                 <tr><th scope="row">plate.pt</th><td>Plate detection (YOLOv8s, trained from scratch)</td><td>plate</td></tr>
                 <tr><th scope="row">plate_letter.pt</th><td>Character detection (YOLOv8n, fine-tuned)</td><td>0–9, A–Y without I, O and Z, plus back_car</td></tr>
                 <tr><th scope="row">yolov8n.pt</th><td>Vehicle detection (COCO YOLOv8n, named car.pt in the project code)</td><td>car, bus and truck are used</td></tr>
+                <tr><th scope="row">OXR-1.0</th><td>Text recognition, the third reader (SoMark OXR, used as published, not trained here)</td><td>any printed text</td></tr>
               </tbody>
             </table>
           </div>
@@ -85,12 +91,14 @@ export function render(root, { records, summary, metrics }) {
             <li>supervision (ByteTrack) for vehicle tracking</li>
             <li>OpenCV for video and image processing</li>
             <li>Tesseract OCR 5 through pytesseract</li>
+            <li>OXR-1.0 through Hugging Face transformers 5, on a CUDA GPU</li>
             <li>This dashboard: HTML, CSS, JavaScript and Chart.js 4.4.1, published with GitHub Pages</li>
           </ul>
           <h2>Who built what</h2>
           <ul class="stack-list">
             <li>Dataset, model training and the recognition pipeline: weikang14's final year project</li>
             <li>This dashboard, the tests and the changes made after the project: built with Claude Code, an AI coding assistant</li>
+            <li>The third reader, OXR-1.0: <a href="${OXR}" target="_blank" rel="noopener">SoMark OXR</a> (Apache 2.0 with SoMark's terms), used as published</li>
           </ul>
           <p><a class="button" href="${REPO}" target="_blank" rel="noopener">View the source on GitHub</a></p>
         </section>
